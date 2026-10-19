@@ -72,6 +72,9 @@ FLUX_STATIONS = ["S5", "SHR"]
 ALL_STATIONS = AWS_STATIONS + FLUX_STATIONS
 
 # Vaste kleur per station (categorisch palet, vaste volgorde)
+# Engelse namen van de tijdseenheden voor de figuurteksten
+FREQ_NAMES = {"h": "hour", "D": "day", "W": "week", "M": "month", "Y": "year"}
+
 COLORS = {"AWS5": "#2a78d6", "AWS6": "#eb6834", "AWS9": "#1baf7a",
           "AWS10": "#eda100", "S5": "#e87ba4", "SHR": "#008300"}
 
@@ -179,8 +182,10 @@ def seb_melt(swd, swu, lwd, lwu, shf, lhf, t_s):
 # Smelt per station (op originele tijdresolutie)
 # ---------------------------------------------------------------------------
 
-def melt_aws(station):
-    df = load_aws(station)
+def melt_aws(station, df=None):
+    """SEB-smelt voor een AWS; geef df mee om met aangepaste invoer te rekenen."""
+    if df is None:
+        df = load_aws(station)
     p = df["PPPP"] * 100
     t_air = df["TTT"] + T0
     # oppervlaktetemperatuur uit LWU (emissiviteit 1), niet boven smeltpunt
@@ -235,7 +240,7 @@ def melt_station(station):
 # Aggregeren per tijdseenheid
 # ---------------------------------------------------------------------------
 
-def aggregate(ts, freq):
+def aggregate(ts, freq, min_coverage=MIN_COVERAGE):
     """Smelt (mm w.e.) en gemiddelde fluxen per periode, met dekkingscontrole."""
     ts = ts.copy()
     # tijdstap per rij (h); grote gaten tellen niet als dekking
@@ -256,9 +261,9 @@ def aggregate(ts, freq):
     res["melt_hours"] = (ts["dt_h"] * (ts["M"] > 0)).groupby(periods).sum()
     obs = ts["obs_lowering"]
     obs_cov = (ts["dt_h"] * obs.notna()).groupby(periods).sum() / pd.Series(hours, ts.index).groupby(periods).first()
-    res["obs_lowering_m"] = obs.groupby(periods).sum().where(obs_cov >= MIN_COVERAGE)
+    res["obs_lowering_m"] = obs.groupby(periods).sum().where(obs_cov >= min_coverage)
     res["obs_melt_mmwe_ice"] = res["obs_lowering_m"] * RHO_ICE   # alleen zinvol voor kaal ijs
-    bad = res["coverage"] < MIN_COVERAGE
+    bad = res["coverage"] < min_coverage
     res.loc[bad, ["SWnet", "LWnet", "SHF", "LHF", "M", "melt_mmwe"]] = np.nan
     res["coverage"] = res["coverage"].clip(upper=1).round(3)
     res.index.name = "period"
@@ -288,8 +293,8 @@ def plot_timeseries(wide, freq, out):
             ax.plot(x, y, lw=2, color=COLORS[st], label=st)
         else:
             ax.plot(x, y, lw=2, marker="o", ms=4, color=COLORS[st], label=st)
-    ax.set_ylabel(f"smelt (mm w.e. per {freq})")
-    ax.set_title("Berekende smelt per station", loc="left", color="#0b0b0b")
+    ax.set_ylabel(f"melt (mm w.e. per {FREQ_NAMES.get(freq, freq)})")
+    ax.set_title("Calculated melt per station", loc="left", color="#0b0b0b")
     ax.legend(frameon=False, ncol=len(wide.columns), loc="upper left")
     style(ax)
     fig.tight_layout()
@@ -311,7 +316,7 @@ def plot_components(long, out):
     ax.axhline(0, color="#52514e", lw=0.8)
     ax.set_xticks(xs, sub.index)
     ax.set_ylabel("W m$^{-2}$")
-    ax.set_title("Gemiddelde energiebalanscomponenten in perioden met smelt", loc="left")
+    ax.set_title("Mean surface energy balance components during melt periods", loc="left")
     ax.legend(frameon=False, ncol=4, loc="upper center", bbox_to_anchor=(0.5, -0.08))
     style(ax)
     fig.tight_layout()
@@ -324,16 +329,17 @@ def plot_calc_vs_obs(long, freq, out):
     if sub.empty:
         return
     fig, ax = plt.subplots(figsize=(5.5, 5.5))
-    for st, d in sub.groupby("station"):
+    for st in [s for s in ALL_STATIONS if s in set(sub["station"])]:
+        d = sub[sub["station"] == st]
         ax.scatter(d["obs_melt_mmwe_ice"], d["melt_mmwe"], s=18, alpha=0.7,
                    color=COLORS[st], edgecolor="white", lw=0.5, label=st)
     lim = [0, max(sub["melt_mmwe"].max(), sub["obs_melt_mmwe_ice"].max()) * 1.05]
     ax.plot(lim, lim, color="#a8a7a2", lw=1, ls="--")
     ax.set_xlim(lim)
     ax.set_ylim(lim)
-    ax.set_xlabel(f"gemeten (mm w.e. per {freq}, aanname ijs {RHO_ICE:.0f} kg/m³)")
-    ax.set_ylabel(f"berekend SEB (mm w.e. per {freq})")
-    ax.set_title("Berekende vs gemeten smelt", loc="left")
+    ax.set_xlabel(f"observed (mm w.e. per {FREQ_NAMES.get(freq, freq)}, assuming ice {RHO_ICE:.0f} kg/m³)")
+    ax.set_ylabel(f"calculated SEB (mm w.e. per {FREQ_NAMES.get(freq, freq)})")
+    ax.set_title("Calculated vs observed melt", loc="left")
     ax.legend(frameon=False)
     style(ax)
     ax.grid(axis="x", color="#e5e4e0", lw=0.8)

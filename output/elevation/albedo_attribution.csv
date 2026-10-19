@@ -1,0 +1,5 @@
+station,n_jaren,gem_smelt,std_smelt,std_smelt_clim_albedo,variantie_door_albedo,r_anomalie_albedobijdrage,max_albedobijdrage,jaar_max,min_albedobijdrage,jaar_min
+AWS10,5,406.311,240.16,180.631,0.434,0.882,160.715,2012,-18.753,2013
+AWS5,18,3460.945,622.796,594.162,0.09,0.326,290.457,2020,-171.072,2008
+AWS6,15,1812.699,503.281,348.36,0.521,0.783,751.87,2019,-243.758,2004
+AWS9,15,980.913,403.193,192.212,0.773,0.944,613.071,2012,-128.217,2004
