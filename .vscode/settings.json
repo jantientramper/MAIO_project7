@@ -1,3 +1,5 @@
 {
-    "python.defaultInterpreterPath": "/home/lester/miniconda3/envs/general/bin/python"
+    "python.defaultInterpreterPath": "/home/lester/miniconda3/envs/general/bin/python",
+    "python-envs.defaultEnvManager": "ms-python.python:conda",
+    "python-envs.defaultPackageManager": "ms-python.python:conda"
 }
