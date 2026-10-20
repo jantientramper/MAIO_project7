@@ -107,18 +107,57 @@ Over alleen de jaren vóór de wissel is er geen trend in temperatuur of voelbar
 
 ---
 
-## Beperkingen
+## Beperkingen en zwaktes in de code
 
-- **SHR heeft geen eigen stralingsmeting.** De straling en het albedo komen van AWS5, wat voor SHR een benadering is. Data van KAN_L (PROMICE) zou dit oplossen.
-- **Vaste parameters.** De ruwheidslengte per station, de meethoogte (3 m voor het oude stationstype) en de smeltdrempel (0.5 K) zijn vast gekozen. De ruwheid heeft de meeste invloed op de uitkomst.
-- **Geen warmtestroom in het ijs.** Daardoor wordt de smelt in het voorjaar waarschijnlijk iets overschat, omdat dan eerst het ijs moet opwarmen.
-- **Het albedo-experiment meet alleen het directe effect.** De oppervlaktetemperatuur en de turbulente fluxen blijven gelijk, dus terugkoppelingen via die termen zitten er niet in.
-- **Trends over 2003–2021 zijn niet zonder meer bruikbaar.** De wissel van stationstype veroorzaakt sprongen in de reeks.
-- **Niet gebruikt:** de bestanden `grl_aws*_final_year*.txt` hebben geen kolomnamen. Daardoor ontbreekt 2022.
+De punten staan per groep, binnen elke groep van grootste naar kleinste invloed op de resultaten. Verwijzingen gaan naar functies in [code/melt_comparison.py](code/melt_comparison.py) en [code/elevation_albedo.py](code/elevation_albedo.py).
+
+### Grote invloed op de uitkomst
+
+1. **De ruwheidslengtes zijn geschat, en voor AWS5 liggen ze ver naast de metingen** (`Z0M`, `Z0H_RATIO`). De eddy-covariancemast op dezelfde locatie (`data/S5`) geeft voor de zomer:
+
+   | | Gemeten (JJA-mediaan) | In het script |
+   |---|---|---|
+   | z0m | 0.027 m | 0.01 m |
+   | z0h | 0.00005 m | 0.001 m (20× te groot) |
+
+   De twee afwijkingen werken tegen elkaar in, maar die in z0h is waarschijnlijk de grootste. Dat kan de te hoge voelbare warmte en de positieve afwijking van +53 mm per maand bij AWS5 verklaren. De vaste verhouding `z0h = z0m/10` klopt voor ruw ijs niet: daar is z0h 2–3 ordes kleiner dan z0m.
+2. **De meethoogte staat vast op 3 m voor het oude stationstype** (`Z_DEFAULT`). De werkelijke hoogtes staan in de metadata-xlsx van PANGAEA, maar worden niet gebruikt. Wind en temperatuur worden ook op verschillende hoogtes gemeten.
+3. **Geen warmtestroom in het ijs, en een harde smeltdrempel.**
+   - Alle energie bij een oppervlak op 0 °C gaat naar smelt. In het voorjaar moet eerst het koude ijs opwarmen, dus de smelt wordt dan overschat.
+   - Of er smelt is, hangt af van de oppervlaktetemperatuur binnen 0.5 K van het smeltpunt (`T_MELT_TOL`). Die temperatuur komt uit LWU met emissiviteit 1. Een meetfout van enkele W/m² in LWU kan daardoor het verschil maken tussen wel en geen smelt. Bij SHR vallen veel dagen net onder de drempel.
+4. **SHR heeft geen eigen stralingsmeting** (`melt_flux`). SWD, SWU en LWD komen van AWS5, en het albedo van AWS5 past waarschijnlijk niet bij SHR. Uitspraken over hoeveel SHR smelt zijn daardoor zwak. Data van KAN_L (PROMICE) zou dit oplossen.
+5. **De gemeten smelt is alleen bruikbaar bij kaal ijs.** De akoestische hoogtemeter meet ook sneeuwval, maar alles wordt omgerekend met ijsdichtheid (`RHO_ICE`). Sneeuwval telt dan als negatieve smelt. Daarom is de validatie bij AWS9 en AWS10 niet bruikbaar.
+
+### Ontbrekende data en aggregatie
+
+6. **Het opvullen van gaten gaat ervan uit dat ze willekeurig vallen** (`aggregate`). Gaten krijgen de gemiddelde smeltsnelheid van de rest van de periode. Vallen ze vooral overdag, dan klopt de smelt van die periode niet.
+7. **Alle tijdstappen tellen even zwaar.** In een periode met zowel 30- als 60-minutendata (rond een stationswissel) tellen de 30-minutenstappen dubbel. Aan de rand van een gat wordt de dekking iets overschat, omdat elke stap tot 1 uur wordt afgekapt.
+8. **Sprongen in de hoogtemeting worden herkend met een vaste drempel van 5 cm per stap** (`observed_lowering`). Een herinstallatie met een sprong kleiner dan 5 cm telt dus als smelt of als aangroei.
+
+### Natuurkundige vereenvoudigingen
+
+9. **De iteratie voor de turbulente fluxen wordt niet op convergentie gecontroleerd** (`bulk_fluxes`). Er zijn altijd precies 10 stappen, en de stabiliteitsparameter wordt afgekapt tussen −5 en 10. Bij zeer stabiele lucht en weinig wind kan het resultaat onzin zijn zonder dat het opvalt.
+10. **De keuze tussen verdampings- en sublimatiewarmte is inconsistent.** Een oppervlak op −0.3 °C telt als smeltend, maar krijgt sublimatiewarmte. Het verschil is ongeveer 13% van LHF.
+11. **Geen correcties op de straling.** De scheefstand van de mast wordt niet gecorrigeerd, en albedowaarden boven 1 bij een lage zon worden niet weggefilterd.
+12. **Het albedo-experiment meet alleen het directe stralingseffect.** De oppervlaktetemperatuur en de turbulente fluxen blijven gelijk, dus terugkoppelingen via die termen zitten er niet in.
+
+### Analyse van hoogte en albedo
+
+13. **De wissel van stationstype wordt gemeten, maar niet gecorrigeerd.** Trends over 2003–2021 bevatten daardoor sprongen. Ook de zomergemiddelden en gradiënten van verschillende periodes zijn niet helemaal vergelijkbaar.
+14. **Het klimatologische albedo bevat ook het jaar zelf** (`climatological_albedo`). Bij AWS10, met maar 5 jaar, trekt een extreem jaar zijn eigen klimatologie mee, zodat het albedo-effect wordt onderschat. Het jaar zelf weglaten zou beter zijn.
+15. **De JJA-berekening is een omweg** (`jja_summary`). Er wordt een jaartotaal gemaakt en dat wordt teruggeschaald naar JJA. Dat werkt, maar gaat stuk zodra iemand `aggregate()` aanpast.
+16. **Trends worden al vanaf 5 jaar berekend** (`trends`). Bij AWS10 komt er zo een "trend" van −5 °C per decennium in de uitvoer, zonder waarschuwing.
+
+### Robuustheid van de code
+
+17. **`--common` laat stations zonder data stilletjes weg.** Bijvoorbeeld AWS10 in 2021: in de uitvoer staat gewoon NaN, zonder melding.
+18. **Instellingen staan vast in de code.** Ruwheid, drempels en meethoogte zijn globale constanten, zonder optie op de opdrachtregel. Een gevoeligheidsanalyse vraagt daardoor aanpassingen in de code.
+19. **Geen tests, en dezelfde data wordt meerdere keren ingelezen.** Er zijn geen controles op bijvoorbeeld energiebehoud, eenheden of een bekende dag. `melt_flux` leest bij elke aanroep alle AWS5-data opnieuw in.
+20. **Niet gebruikte data:** de bestanden `grl_aws*_final_year*.txt` hebben geen kolomnamen. Daardoor ontbreekt 2022.
 
 ## Mogelijke vervolgstappen
 
-1. **Ruwheid bepalen bij AWS5:** de eddy-covariancebestanden van dezelfde locatie (`data/S5`) bevatten waarden voor z0m. Daarmee kan de grootste onzekerheid in de smelt bij AWS5 kleiner worden (onderzoekslijn A).
+1. **Ruwheid bepalen bij AWS5:** de eddy-covariancebestanden van dezelfde locatie (`data/S5`) bevatten gemeten z0m en z0h. Met die waarden kan de grootste fout in de smelt bij AWS5 kleiner worden (onderzoekslijn A, zie punt 1 hierboven). Dat gaat het best samen met instellingen vanaf de opdrachtregel (punt 18), zodat er meteen een gevoeligheidsanalyse kan draaien.
 2. **AWS5 vergelijken met SHR:** met stralingsdata van KAN_L kan SHR echt met AWS5 worden vergeleken.
 3. **Betere validatie hoger op de ijskap:** onderscheid maken tussen sneeuw en ijs bij de omrekening van de gemeten daling, zodat AWS9 en AWS10 ook te valideren zijn.
 
