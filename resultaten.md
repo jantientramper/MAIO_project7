@@ -22,10 +22,11 @@ Er wordt alleen smelt geteld als het oppervlak op 0 °C is en er energie over is
 | Stations | Hoogte | Straling | Turbulente fluxen (SHF, LHF) |
 |---|---|---|---|
 | AWS5, AWS6, AWS9, AWS10 | 500 / 1000 / 1500 / 1850 m | gemeten | berekend met de bulkmethode uit wind, temperatuur, vochtigheid en oppervlaktetemperatuur |
-| S5 (= locatie AWS5) | 500 m | van AWS5 | SHF gemeten (eddy covariance), LHF zelf berekend |
-| SHR (bij KAN_L) | niet in data | van AWS5 (benadering) | SHF gemeten, LHF zelf berekend |
+| SHR (bij KAN_L) | niet in data | van AWS5 (benadering) | SHF gemeten (eddy covariance), LHF zelf berekend |
 
-De kolom met latente warmte is in de S5- en SHR-bestanden helemaal leeg. Daarom is LHF berekend uit de windschuifsnelheid, de stabiliteitscorrectie en het vochtverschil tussen lucht en oppervlak, die wel in de bestanden staan. Ter controle geeft dezelfde formule de gemeten voelbare warmte terug met r = 0.95.
+De eddy-covariancemast S5 staat op dezelfde plek als AWS5 en is daarom niet als apart station meegenomen.
+
+De kolom met latente warmte is in de SHR-bestanden helemaal leeg. Daarom is LHF berekend uit de windschuifsnelheid, de stabiliteitscorrectie en het vochtverschil tussen lucht en oppervlak, die wel in de bestanden staan. Ter controle geeft dezelfde formule de gemeten voelbare warmte terug met r = 0.95.
 
 ### Wat er gevonden is
 
@@ -42,14 +43,16 @@ De kolom met latente warmte is in de S5- en SHR-bestanden helemaal leeg. Daarom 
 
 | Station | r | Gemiddelde afwijking |
 |---|---|---|
-| AWS5 | 0.96 | +64 mm |
-| AWS6 | 0.89 | +9 mm |
-| AWS9 | 0.22 | −221 mm |
-| AWS10 | 0.60 | −136 mm |
+| AWS5 | 0.96 | +53 mm |
+| AWS6 | 0.89 | +5 mm |
+| AWS9 | 0.19 | −233 mm |
+| AWS10 | 0.62 | −148 mm |
+
+Voor beide reeksen geldt dezelfde aanpak bij ontbrekende data: een periode telt alleen mee bij minstens 80% dekking. De waarde wordt dan opgeschaald van de tijd met geldige data naar de hele periode.
 
 Bij AWS5 en AWS6 werkt de methode goed ([figuur](output/melt_calc_vs_obs_M.png)). Bij AWS9 en AWS10 meet de hoogtemeter ook sneeuwval en de hoogte van de sneeuw, en die verlaging is omgerekend alsof het ijs is. De slechte overeenkomst daar komt dus vooral door de meting, niet door de berekening.
 
-**S5 tegen AWS5.** Dit is dezelfde plek, maar met onafhankelijk bepaalde turbulente fluxen. In juni tot 10 augustus 2021 komt S5 uit op 2413 mm w.e. en AWS5 op 2574 mm w.e. ([figuur](output/zomer2021/melt_timeseries_D.png)). SHR smelt in dezelfde periode duidelijk minder (854 mm w.e.), vooral omdat het oppervlak daar vaker net onder 0 °C blijft.
+**SHR tegen AWS5.** In juni tot 10 augustus 2021 komt AWS5 uit op 2574 mm w.e. en SHR op 854 mm w.e. ([figuur](output/zomer2021/melt_timeseries_D.png)). SHR smelt duidelijk minder, vooral omdat het oppervlak daar vaker net onder 0 °C blijft.
 
 **Waar de smeltenergie vandaan komt.** Dat verschilt sterk met de hoogte. Bij AWS5 komt bijna de helft (46%) uit voelbare warmte, de warme lucht boven het ijs. Hoger op de ijskap is netto kortgolvige straling de belangrijkste bron, met 79% bij AWS6 en 88–90% bij AWS9 en AWS10.
 
@@ -115,8 +118,8 @@ Over alleen de jaren vóór de wissel is er geen trend in temperatuur of voelbar
 
 ## Mogelijke vervolgstappen
 
-1. **Ruwheid bepalen bij S5:** de S5-fluxbestanden bevatten zelf waarden voor z0m. Daarmee kan de grootste onzekerheid in de smelt bij AWS5 kleiner worden (onderzoekslijn A).
-2. **S5 vergelijken met SHR:** met stralingsdata van KAN_L kan SHR echt met S5 worden vergeleken.
+1. **Ruwheid bepalen bij AWS5:** de eddy-covariancebestanden van dezelfde locatie (`data/S5`) bevatten waarden voor z0m. Daarmee kan de grootste onzekerheid in de smelt bij AWS5 kleiner worden (onderzoekslijn A).
+2. **AWS5 vergelijken met SHR:** met stralingsdata van KAN_L kan SHR echt met AWS5 worden vergeleken.
 3. **Betere validatie hoger op de ijskap:** onderscheid maken tussen sneeuw en ijs bij de omrekening van de gemeten daling, zodat AWS9 en AWS10 ook te valideren zijn.
 
 ## Reproduceren

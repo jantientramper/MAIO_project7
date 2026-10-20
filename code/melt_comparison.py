@@ -17,12 +17,12 @@ AWS5, AWS6, AWS9, AWS10 (data/AWSx/*.tab, PANGAEA)
     oppervlaktetemperatuur afgeleid uit LWU.
     Daarnaast de *gemeten* oppervlakteverlaging (draw wire 'Ice melt' voor
     AWS type 1, akoestische hoogtemeter 'Height rel' voor type 0).
-S5, SHR (data/S5, data/SHR, eddy-covariance masten)
-    SHF gemeten (sonic). De LHF-kolom is in de bestanden leeg, dus LHF wordt
-    berekend uit ustar, psih, z0h en qv0 - qvs. De masten meten geen straling:
-    SWD, SWU en LWD komen van AWS5 (S5 is dezelfde locatie). Voor SHR is dat een
-    benadering (vooral het albedo kan afwijken). LWU volgt uit de eigen
-    oppervlaktetemperatuur (ths).
+SHR (data/SHR, eddy-covariance mast)
+    SHF gemeten (sonic). De LHF-kolom is in het bestand leeg, dus LHF wordt
+    berekend uit ustar, psih, z0h en qv0 - qvs. De mast meet geen straling:
+    SWD, SWU en LWD komen van AWS5, wat een benadering is (vooral het albedo
+    kan afwijken). LWU volgt uit de eigen oppervlaktetemperatuur (ths).
+S5 (data/S5) is dezelfde locatie als AWS5 en wordt daarom niet meegenomen.
 
 Gebruik
 -------
@@ -68,7 +68,7 @@ Z0M = {"AWS5": 1e-2, "AWS6": 5e-3, "AWS9": 1e-3, "AWS10": 1e-3}
 Z0H_RATIO = 0.1         # z0h = z0m * Z0H_RATIO
 
 AWS_STATIONS = ["AWS5", "AWS6", "AWS9", "AWS10"]
-FLUX_STATIONS = ["S5", "SHR"]
+FLUX_STATIONS = ["SHR"]   # S5 = zelfde locatie als AWS5, daarom niet meegenomen
 ALL_STATIONS = AWS_STATIONS + FLUX_STATIONS
 
 # Vaste kleur per station (categorisch palet, vaste volgorde)
@@ -76,7 +76,7 @@ ALL_STATIONS = AWS_STATIONS + FLUX_STATIONS
 FREQ_NAMES = {"h": "hour", "D": "day", "W": "week", "M": "month", "Y": "year"}
 
 COLORS = {"AWS5": "#2a78d6", "AWS6": "#eb6834", "AWS9": "#1baf7a",
-          "AWS10": "#eda100", "S5": "#e87ba4", "SHR": "#008300"}
+          "AWS10": "#eda100", "SHR": "#008300"}
 
 
 # ---------------------------------------------------------------------------
@@ -198,7 +198,7 @@ def melt_aws(station, df=None):
                            z0m, z0m * Z0H_RATIO)
     out = seb_melt(df["SWD"], df["SWU"], df["LWD"], df["LWU"],
                    pd.Series(shf, df.index), pd.Series(lhf, df.index), t_s)
-    out["obs_lowering"] = observed_lowering(df)
+    out["obs_lowering"], out["obs_dt_h"] = observed_lowering(df)
     return out
 
 
@@ -208,11 +208,15 @@ def observed_lowering(df, max_step=0.05):
     Type 1: draw wire ('Ice melt' neemt af bij smelt).
     Type 0: akoestische hoogtemeter op paal ('Height rel' neemt toe bij smelt).
     Sprongen > max_step (herinstallatie, onderhoud) worden weggegooid.
+    Geeft ook de duur (h) van elke geldige stap terug, zodat aggregate() de
+    gemeten verlaging net als de berekende smelt kan opschalen naar de periode.
     """
     d_wire = -df["Ice melt"].diff()
     d_sr = df["Height rel"].diff()
     d = d_wire.where(df["ID"] == 1, d_sr.where(df["ID"] == 0))
-    return d.where(d.abs() <= max_step)
+    d = d.where(d.abs() <= max_step)
+    dt_h = df.index.to_series().diff().dt.total_seconds() / 3600
+    return d, dt_h.where(d.notna())
 
 
 def melt_flux(station):
@@ -229,6 +233,7 @@ def melt_flux(station):
     # Albedo/SWU van AWS5 schalen we niet; zie docstring bovenaan.
     out = seb_melt(rad["SWD"], rad["SWU"], rad["LWD"], SIGMA * t_s**4, shf, lhf, t_s)
     out["obs_lowering"] = np.nan
+    out["obs_dt_h"] = np.nan
     return out
 
 
@@ -249,19 +254,22 @@ def aggregate(ts, freq, min_coverage=MIN_COVERAGE):
     ts["melt_rate"] = ts["M"] * 3600 / LF                     # mm w.e. per uur
     periods = ts.index.to_period(freq)
     hours = ((periods.end_time - periods.start_time).total_seconds() + 1e-9) / 3600
+    period_hours = pd.Series(hours, ts.index).groupby(periods).first()
 
     valid = ts["M"].notna()
     g = ts.groupby(periods)
     res = pd.DataFrame({
-        "coverage": (ts["dt_h"] * valid).groupby(periods).sum() / pd.Series(hours, ts.index).groupby(periods).first(),
+        "coverage": (ts["dt_h"] * valid).groupby(periods).sum() / period_hours,
         "SWnet": g["SWnet"].mean(), "LWnet": g["LWnet"].mean(),
         "SHF": g["SHF"].mean(), "LHF": g["LHF"].mean(), "M": g["M"].mean(),
     })
-    res["melt_mmwe"] = g["melt_rate"].mean() * pd.Series(hours, ts.index).groupby(periods).first()
+    res["melt_mmwe"] = g["melt_rate"].mean() * period_hours
     res["melt_hours"] = (ts["dt_h"] * (ts["M"] > 0)).groupby(periods).sum()
-    obs = ts["obs_lowering"]
-    obs_cov = (ts["dt_h"] * obs.notna()).groupby(periods).sum() / pd.Series(hours, ts.index).groupby(periods).first()
-    res["obs_lowering_m"] = obs.groupby(periods).sum().where(obs_cov >= min_coverage)
+    # gemeten verlaging: net als de berekende smelt opschalen van de gedekte tijd naar de hele periode
+    obs_hours = ts["obs_dt_h"].groupby(periods).sum()
+    res["obs_coverage"] = (obs_hours / period_hours).clip(upper=1).round(3)
+    obs_sum = ts["obs_lowering"].groupby(periods).sum()
+    res["obs_lowering_m"] = (obs_sum / obs_hours * period_hours).where(res["obs_coverage"] >= min_coverage)
     res["obs_melt_mmwe_ice"] = res["obs_lowering_m"] * RHO_ICE   # alleen zinvol voor kaal ijs
     bad = res["coverage"] < min_coverage
     res.loc[bad, ["SWnet", "LWnet", "SHF", "LHF", "M", "melt_mmwe"]] = np.nan
