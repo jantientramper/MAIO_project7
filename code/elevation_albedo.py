@@ -246,7 +246,7 @@ def plot_gradients(clim_full, clim_common, grads, out):
         ax.plot(r["intercept"] + r["slope"] * z, z, color="#a8a7a2", lw=1.2, ls="--", zorder=2)
         unit = "" if VARS[v][1] == "-" else f" {VARS[v][1]}"
         ax.set_title(f"{VARS[v][0]}\n{g.gradient_per_100m:+.3g}{unit} per 100 m  (R²={g.r2:.2f})",
-                     loc="left", fontsize=10)
+                     fontsize=10)
         ax.set_xlabel(VARS[v][1])
         style(ax)
     for ax in axes[:, 0]:
@@ -254,7 +254,7 @@ def plot_gradients(clim_full, clim_common, grads, out):
     fig.text(0.01, 0.005, "● JJA mean over all years per station   ◇ common period "
              "(all 4 stations)   -- linear fit", fontsize=8, color="#52514e")
     fig.tight_layout(rect=(0, 0.02, 1, 1))
-    fig.savefig(out, dpi=150)
+    fig.savefig(out, dpi=600)
     plt.close(fig)
 
 
@@ -270,11 +270,11 @@ def plot_partition(clim_full, out):
     ax.axhline(0, color="#52514e", lw=0.8)
     ax.set_xticks(xs, [f"{s}\n{int(e)} m" for s, e in zip(d.index, d["elevation"])])
     ax.set_ylabel("W m$^{-2}$ (JJA mean)")
-    ax.set_title("Summer surface energy balance components, from low to high elevation", loc="left")
+    ax.set_title("Summer surface energy balance components, from low to high elevation")
     ax.legend(frameon=False, ncol=4, loc="upper center", bbox_to_anchor=(0.5, -0.15))
     mc.style(ax)
     fig.tight_layout()
-    fig.savefig(out, dpi=150)
+    fig.savefig(out, dpi=600)
     plt.close(fig)
 
 
@@ -289,13 +289,13 @@ def plot_albedo_experiment(years, out):
         ax.bar(d.index + 0.2, d["melt"] - d["melt_clim_alb"], width=0.38, color="#a8a7a2",
                label="albedo anomaly contribution")
         ax.axhline(0, color="#52514e", lw=0.8)
-        ax.set_title(f"{st}  (mean JJA melt {mean:.0f} mm w.e.)", loc="left", fontsize=10)
+        ax.set_title(f"{st}  (mean JJA melt {mean:.0f} mm w.e.)", fontsize=10)
         ax.set_ylabel("mm w.e.")
         mc.style(ax)
         ax.legend(frameon=False, fontsize=8, loc="upper left", ncol=2)
     ax.xaxis.set_major_locator(plt.MaxNLocator(integer=True))
     fig.tight_layout()
-    fig.savefig(out, dpi=150)
+    fig.savefig(out, dpi=600)
     plt.close(fig)
 
 
@@ -304,9 +304,9 @@ def plot_albedo_climatology(clims, years, out):
     for st, c in clims.items():
         c = c.loc[120:270]
         ax1.plot(c.index, c.values, lw=2, color=mc.COLORS[st], label=st)
-    ax1.set_xlabel("day of year")
-    ax1.set_ylabel("albedo")
-    ax1.set_title("Climatological albedo (median, 15-day smoothed)", loc="left")
+    ax1.set_xlabel("Day of year")
+    ax1.set_ylabel("Albedo")
+    ax1.set_title("Climatological albedo (median, 15-day smoothed)")
     ax1.legend(frameon=False)
     mc.style(ax1)
     for st in mc.AWS_STATIONS:
@@ -316,13 +316,13 @@ def plot_albedo_climatology(clims, years, out):
         if np.isfinite(r["slope"]):
             x = np.linspace(d["albedo"].min(), d["albedo"].max(), 5)
             ax2.plot(x, r["intercept"] + r["slope"] * x, color=mc.COLORS[st], lw=1.2)
-    ax2.set_xlabel("mean JJA albedo")
+    ax2.set_xlabel("Mean JJA albedo")
     ax2.set_ylabel("JJA melt (mm w.e.)")
-    ax2.set_title("Summer melt vs summer albedo (per year)", loc="left")
+    ax2.set_title("Summer melt vs summer albedo (per year)")
     ax2.legend(frameon=False)
     style(ax2)
     fig.tight_layout()
-    fig.savefig(out, dpi=150)
+    fig.savefig(out, dpi=600)
     plt.close(fig)
 
 

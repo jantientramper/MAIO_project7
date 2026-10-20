@@ -42,6 +42,8 @@ import numpy as np
 import pandas as pd
 import matplotlib.pyplot as plt
 
+from matplotlib.lines import Line2D
+
 ROOT = Path(__file__).resolve().parent.parent
 DATA = ROOT / "data"
 
@@ -75,8 +77,11 @@ ALL_STATIONS = AWS_STATIONS + FLUX_STATIONS
 # Engelse namen van de tijdseenheden voor de figuurteksten
 FREQ_NAMES = {"h": "hour", "D": "day", "W": "week", "M": "month", "Y": "year"}
 
-COLORS = {"AWS5": "#2a78d6", "AWS6": "#eb6834", "AWS9": "#1baf7a",
-          "AWS10": "#eda100", "SHR": "#008300"}
+COLORS = {"AWS5": "#0e8a8a",  
+          "AWS6": "#e5a50a",   
+          "AWS9": "#6aa121",   
+          "AWS10": "#7b3fa0",  
+          "SHR": "#d6453d"}   
 
 
 # ---------------------------------------------------------------------------
@@ -282,33 +287,49 @@ def aggregate(ts, freq, min_coverage=MIN_COVERAGE):
 # Figuren
 # ---------------------------------------------------------------------------
 
-def style(ax):
-    ax.grid(axis="y", color="#e5e4e0", lw=0.8)
-    ax.set_axisbelow(True)
-    for s in ("top", "right"):
-        ax.spines[s].set_visible(False)
-    for s in ("left", "bottom"):
-        ax.spines[s].set_color("#a8a7a2")
-    ax.tick_params(colors="#52514e")
+# def style(ax):
+#     ax.grid(axis="y", color="#e5e4e0", lw=0.8)
+#     ax.set_axisbelow(True)
+#     for s in ("top", "right"):
+#         ax.spines[s].set_visible(False)
+#     for s in ("left", "bottom"):
+#         ax.spines[s].set_color("#a8a7a2")
+#     ax.tick_params(colors="#52514e")
 
+def style(ax):
+    for s in ax.spines.values():
+        s.set_visible(True)
+        s.set_color("black")
+        s.set_linewidth(1)
+    ax.grid(color="#e5e4e0", lw=0.8)
+    ax.set_axisbelow(True)                       
+    ax.tick_params(direction="out", length=5, width=1, colors="black")
 
 def plot_timeseries(wide, freq, out):
     fig, ax = plt.subplots(figsize=(11, 4.5))
     x = wide.index.to_timestamp()
+    use_markers = freq not in ("h", "D", "W")
     for st in wide.columns:
         y = wide[st]
-        if freq in ("h", "D", "W"):
-            ax.plot(x, y, lw=2, color=COLORS[st], label=st)
+        if use_markers:
+            ax.plot(x, y, lw=2, marker="o", ms=4, color=COLORS[st])
         else:
-            ax.plot(x, y, lw=2, marker="o", ms=4, color=COLORS[st], label=st)
-    ax.set_ylabel(f"melt (mm w.e. per {FREQ_NAMES.get(freq, freq)})")
-    ax.set_title("Calculated melt per station", loc="left", color="#0b0b0b")
-    ax.legend(frameon=False, ncol=len(wide.columns), loc="upper left")
+            ax.plot(x, y, lw=2, color=COLORS[st])
+    ax.set_ylabel(f"Melt (mm w.e. per {FREQ_NAMES.get(freq, freq)})")
+    ax.set_xlabel("Time (year)")
+    ax.set_title("Calculated melt per station", color="#0b0b0b")
+
+    handles = [Line2D([], [], lw=3, color=COLORS[st], label=st,
+                      marker="o" if use_markers else None, markersize=5)
+               for st in wide.columns]
+    ax.legend(handles=handles, loc="upper left", ncol=len(wide.columns),
+              frameon=True, facecolor="white", edgecolor="#a8a7a2",
+              framealpha=1, borderpad=0.8, columnspacing=1.5)
+
     style(ax)
     fig.tight_layout()
-    fig.savefig(out, dpi=150)
+    fig.savefig(out, dpi=600)
     plt.close(fig)
-
 
 def plot_components(long, out):
     """Gemiddelde SEB-componenten tijdens perioden met smelt, per station."""
@@ -324,35 +345,41 @@ def plot_components(long, out):
     ax.axhline(0, color="#52514e", lw=0.8)
     ax.set_xticks(xs, sub.index)
     ax.set_ylabel("W m$^{-2}$")
-    ax.set_title("Mean surface energy balance components during melt periods", loc="left")
+    ax.set_title("Mean surface energy balance components during melt periods")
     ax.legend(frameon=False, ncol=4, loc="upper center", bbox_to_anchor=(0.5, -0.08))
     style(ax)
     fig.tight_layout()
-    fig.savefig(out, dpi=150)
+    fig.savefig(out, dpi=600)
     plt.close(fig)
-
 
 def plot_calc_vs_obs(long, freq, out):
     sub = long.dropna(subset=["melt_mmwe", "obs_melt_mmwe_ice"])
     if sub.empty:
         return
     fig, ax = plt.subplots(figsize=(5.5, 5.5))
-    for st in [s for s in ALL_STATIONS if s in set(sub["station"])]:
+    stations = [s for s in ALL_STATIONS if s in set(sub["station"])]
+    for st in stations:
         d = sub[sub["station"] == st]
-        ax.scatter(d["obs_melt_mmwe_ice"], d["melt_mmwe"], s=18, alpha=0.7,
-                   color=COLORS[st], edgecolor="white", lw=0.5, label=st)
+        ax.scatter(d["obs_melt_mmwe_ice"], d["melt_mmwe"], s=30, alpha=0.75,
+                   color=COLORS[st], edgecolor="none")
     lim = [0, max(sub["melt_mmwe"].max(), sub["obs_melt_mmwe_ice"].max()) * 1.05]
     ax.plot(lim, lim, color="#a8a7a2", lw=1, ls="--")
     ax.set_xlim(lim)
     ax.set_ylim(lim)
-    ax.set_xlabel(f"observed (mm w.e. per {FREQ_NAMES.get(freq, freq)}, assuming ice {RHO_ICE:.0f} kg/m³)")
-    ax.set_ylabel(f"calculated SEB (mm w.e. per {FREQ_NAMES.get(freq, freq)})")
-    ax.set_title("Calculated vs observed melt", loc="left")
-    ax.legend(frameon=False)
+    ax.set_aspect("equal")
+    ax.set_xlabel(f"Observed (mm w.e. per {FREQ_NAMES.get(freq, freq)})")
+    ax.set_ylabel(f"Calculated SEB (mm w.e. per {FREQ_NAMES.get(freq, freq)})")
+    ax.set_title("Calculated vs observed melt")
+
+    handles = [Line2D([], [], marker="o", ls="", markersize=8,
+                      color=COLORS[st], label=st) for st in stations]
+    ax.legend(handles=handles, loc="upper left", frameon=True, facecolor="white",
+              edgecolor="#a8a7a2", framealpha=1, borderpad=0.8, labelspacing=0.6)
+
     style(ax)
     ax.grid(axis="x", color="#e5e4e0", lw=0.8)
     fig.tight_layout()
-    fig.savefig(out, dpi=150)
+    fig.savefig(out, dpi=600)
     plt.close(fig)
 
 
@@ -416,6 +443,42 @@ def main():
     plot_calc_vs_obs(long, args.freq, out / f"melt_calc_vs_obs_{tag}.png")
     print(f"\nOutput opgeslagen in {out}")
 
-
 if __name__ == "__main__":
     main()
+
+def case_study(station, day, pad=3):
+    df = load_aws(station)
+    ts = melt_aws(station, df)
+    t0 = pd.Timestamp(day) - pd.Timedelta(days=pad)
+    t1 = pd.Timestamp(day) + pd.Timedelta(days=pad + 1)
+    d, s = df.loc[t0:t1], ts.loc[t0:t1]
+    dt_h = (s.index.to_series().diff().shift(-1).dt.total_seconds() / 3600).clip(upper=1.0)
+    calc = (s["M"] * dt_h * 3600 / LF).cumsum()          # mm w.e.
+    obs = (s["obs_lowering"] * RHO_ICE).cumsum()
+
+    fig, axes = plt.subplots(3, 1, figsize=(10, 9), sharex=True)
+    cols = {"SWnet": "#2a78d6", "LWnet": "#eb6834", "SHF": "#1baf7a", "LHF": "#eda100", "M": "#000000"}
+    for c, col in cols.items():
+        axes[0].plot(s.index, s[c], color=col, lw=2.5 if c == "M" else 1.5, label=c)
+    axes[0].axhline(0, color="#888888", lw=0.8)
+    axes[0].set_ylabel("W m$^{-2}$")
+    axes[0].legend(ncol=5, frameon=False)
+
+    axes[1].plot(d.index, d["TTT"], color="#c0392b", lw=1.5)
+    axes[1].set_ylabel("air temperature (°C)")
+    w = axes[1].twinx()
+    w.plot(d.index, d["ff"], color="#444444", lw=1.5)
+    w.set_ylabel("wind speed (m/s)")
+
+    axes[2].plot(s.index, calc, color=COLORS[station], lw=2, label="calculated")
+    axes[2].plot(s.index, obs, color="#444444", lw=2, label="observed")
+    axes[2].set_ylabel("cumulative melt (mm w.e.)")
+    axes[2].legend(frameon=False)
+
+    axes[0].set_title(f"{station}: {day} ±{pad} days")
+    for ax in axes:
+        style(ax)
+    fig.tight_layout()
+    plt.show()
+
+case_study("AWS5", "2021-08-14")
