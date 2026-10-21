@@ -14,7 +14,8 @@ Stations en databronnen
 AWS5, AWS6, AWS9, AWS10 (data/AWSx/*.tab, PANGAEA)
     Straling gemeten. Turbulente fluxen (SHF, LHF) berekend met de bulk-methode
     (Monin-Obukhov similariteit) uit wind, temperatuur, RH, druk en de
-    oppervlaktetemperatuur afgeleid uit LWU.
+    oppervlaktetemperatuur afgeleid uit LWU. Ruwheidslengtes zoals in
+    Kuipers Munneke et al. (2018); zie Z0M en SCALAR_SCHEME.
     Daarnaast de *gemeten* oppervlakteverlaging (draw wire 'Ice melt' voor
     AWS type 1, akoestische hoogtemeter 'Height rel' voor type 0).
 SHR (data/SHR, eddy-covariance mast)
@@ -66,8 +67,19 @@ Z_DEFAULT = 3.0         # meethoogte (m) als die niet bekend is
 LWU_MELT = SIGMA * T0**4  # uitgaande langgolvige straling van smeltend oppervlak
 
 # Ruwheidslengtes per AWS (m). Ablatiezone (AWS5/6) is ruw ijs, AWS9/10 sneeuw.
-Z0M = {"AWS5": 1e-2, "AWS6": 5e-3, "AWS9": 1e-3, "AWS10": 1e-3}
-Z0H_RATIO = 0.1         # z0h = z0m * Z0H_RATIO
+# Ruwheid zoals Kuipers Munneke et al. (2018):
+# - S5/S6: in de tijd varierende z0m (20-daags lopend gemiddelde). De AWS-data hebben maar
+#   een meetniveau, dus z0m komt uit de eddy-covariance masten: S5 (zelfde locatie als AWS5)
+#   en, als benadering voor AWS6 (geen eigen mast), SHR. Waar geen mastdata zijn wordt de
+#   seizoensklimatologie (per dag van het jaar) gebruikt.
+# - S9/S10: constante z0m = 0.126 mm.
+# - zh en zq: Andreas (1987); bij AWS5 voor z0m > 1 mm Smeets & van den Broeke (2008).
+Z0M = {"AWS5": "S5", "AWS6": "SHR", "AWS9": 1.26e-4, "AWS10": 1.26e-4}   # waarde (m) of bronmast
+SCALAR_SCHEME = {"AWS5": "smeets2008", "AWS6": "andreas1987",
+                 "AWS9": "andreas1987", "AWS10": "andreas1987"}
+Z0M_WINDOW_DAYS = 20     # lopend gemiddelde zoals in het paper
+Z0M_VALID = (1e-5, 0.5)  # bruikbare z0m-waarden uit de fluxbestanden (m)
+NU_AIR = 1.46e-5         # kinematische viscositeit lucht (m2/s) voor R* = u* z0 / nu
 
 AWS_STATIONS = ["AWS5", "AWS6", "AWS9", "AWS10"]
 FLUX_STATIONS = ["SHR"]   # S5 = zelfde locatie als AWS5, daarom niet meegenomen
@@ -150,19 +162,51 @@ def psi_h(zeta):
     return np.where(zeta >= 0, stable, unstable)
 
 
-def bulk_fluxes(u, t_air, q_air, t_s, q_s, p, z, z0m, z0h, n_iter=10):
-    """SHF en LHF (W/m2, positief naar oppervlak) met Monin-Obukhov iteratie."""
+def scalar_roughness(ustar, z0m, scheme):
+    """Ruwheidslengtes voor warmte en vocht (z0h, z0q) uit R* = u* z0m / nu.
+
+    andreas1987: ln(zs/z0) = b0 + b1 ln R* + b2 (ln R*)^2, coefficienten per regime
+                 (glad R* <= 0.135, overgang < 2.5, ruw >= 2.5).
+    smeets2008:  zelfde vorm, b = (1.5, -0.2, -0.11) voor warmte en (1.5, -0.2, -0.16)
+                 voor vocht; alleen voor z0m > 1 mm, anders andreas1987.
+    """
+    rstar = np.clip(ustar * z0m / NU_AIR, 1e-3, 1e3)
+    lr = np.log(rstar)
+    # (b0, b1, b2) voor warmte en vocht, Andreas (1987) tabel 1
+    smooth, trans = rstar <= 0.135, (rstar > 0.135) & (rstar < 2.5)
+    def andreas(c_smooth, c_trans, c_rough):
+        b = [np.select([smooth, trans], [c_smooth[i], c_trans[i]], c_rough[i]) for i in range(3)]
+        return b[0] + b[1] * lr + b[2] * lr**2
+    ln_h = andreas((1.250, 0, 0), (0.149, -0.550, 0), (0.317, -0.565, -0.183))
+    ln_q = andreas((1.610, 0, 0), (0.351, -0.628, 0), (0.396, -0.512, -0.180))
+    if scheme == "smeets2008":
+        rough = z0m > 1e-3
+        ln_h = np.where(rough, 1.5 - 0.2 * lr - 0.11 * lr**2, ln_h)
+        ln_q = np.where(rough, 1.5 - 0.2 * lr - 0.16 * lr**2, ln_q)
+    return z0m * np.exp(ln_h), z0m * np.exp(ln_q)
+
+
+def bulk_fluxes(u, t_air, q_air, t_s, q_s, p, z, z0m, scheme="andreas1987", n_iter=10):
+    """SHF en LHF (W/m2, positief naar oppervlak) met Monin-Obukhov iteratie.
+
+    z0m mag per tijdstap verschillen; z0h en z0q worden elke iteratie opnieuw
+    bepaald uit u* (zie scalar_roughness).
+    """
     u = np.maximum(u, 0.1)
+    z0m = np.broadcast_to(z0m, u.shape)
     rho = p / (RD * t_air)
     dth = (t_air + G / CP * z) - t_s       # potentiele temperatuur verschil
     dq = q_air - q_s
-    lnm, lnh = np.log(z / z0m), np.log(z / z0h)
+    lnm = np.log(z / z0m)
     zeta = np.zeros_like(u)
+    ustar = KAPPA * u / lnm                # neutrale startwaarde
     for _ in range(n_iter):
+        z0h, z0q = scalar_roughness(ustar, z0m, scheme)
         ustar = KAPPA * u / (lnm - psi_m(zeta) + psi_m(zeta * z0m / z))
-        denh = lnh - psi_h(zeta) + psi_h(zeta * z0h / z)
+        denh = np.log(z / z0h) - psi_h(zeta) + psi_h(zeta * z0h / z)
+        denq = np.log(z / z0q) - psi_h(zeta) + psi_h(zeta * z0q / z)
         thstar = KAPPA * dth / denh
-        qstar = KAPPA * dq / denh
+        qstar = KAPPA * dq / denq
         thv_star = thstar + 0.61 * t_air * qstar
         L = ustar**2 * t_air / (KAPPA * G * np.where(np.abs(thv_star) < 1e-6, 1e-6, thv_star))
         zeta = np.clip(z / L, -5, 10)
@@ -187,6 +231,36 @@ def seb_melt(swd, swu, lwd, lwu, shf, lhf, t_s):
 # Smelt per station (op originele tijdresolutie)
 # ---------------------------------------------------------------------------
 
+_Z0M_CACHE = {}
+
+
+def z0m_series(station, index):
+    """z0m (m) per tijdstap: constant, of uit de eddy-covariance mast (zie Z0M).
+
+    Uit de mastdata: daggemiddelde (mediaan) -> 20-daags lopend gemiddelde.
+    Dagen zonder mastdata krijgen de klimatologie voor die dag van het jaar.
+    """
+    src = Z0M[station]
+    if not isinstance(src, str):
+        return np.full(len(index), float(src))
+    if src not in _Z0M_CACHE:
+        z = load_flux(src)["z0m"]
+        z = z.where(z.between(*Z0M_VALID))
+        daily = z.resample("D").median()
+        running = daily.rolling(Z0M_WINDOW_DAYS, center=True, min_periods=5).mean()
+        clim = running.groupby(running.index.dayofyear).median().reindex(range(1, 367))
+        # cyclisch gladstrijken en gaten in de klimatologie dichten
+        wrap = pd.concat([clim.iloc[-Z0M_WINDOW_DAYS:], clim, clim.iloc[:Z0M_WINDOW_DAYS]])
+        wrap = wrap.interpolate().rolling(Z0M_WINDOW_DAYS, center=True, min_periods=1).mean()
+        clim = wrap.iloc[Z0M_WINDOW_DAYS:-Z0M_WINDOW_DAYS]
+        _Z0M_CACHE[src] = (running, clim)
+    running, clim = _Z0M_CACHE[src]
+    days = index.floor("D")
+    actual = running.reindex(days).values
+    fallback = clim.reindex(index.dayofyear).values
+    return np.where(np.isnan(actual), fallback, actual)
+
+
 def melt_aws(station, df=None):
     """SEB-smelt voor een AWS; geef df mee om met aangepaste invoer te rekenen."""
     if df is None:
@@ -197,10 +271,10 @@ def melt_aws(station, df=None):
     t_s = np.minimum((df["LWU"].clip(lower=0) / SIGMA) ** 0.25, T0)
     # meethoogte: bij AWS type 1 is 'Height rel' de sensorhoogte
     z = df["Height rel"].where((df["ID"] == 1) & df["Height rel"].between(0.5, 6), Z_DEFAULT)
-    z0m = Z0M[station]
+    z0m = z0m_series(station, df.index)
     shf, lhf = bulk_fluxes(df["ff"].values, t_air.values, q_from_rh(t_air, df["RH"], p).values,
                            t_s.values, q_sat_ice(t_s, p).values, p.values, z.values,
-                           z0m, z0m * Z0H_RATIO)
+                           z0m, SCALAR_SCHEME[station])
     out = seb_melt(df["SWD"], df["SWU"], df["LWD"], df["LWU"],
                    pd.Series(shf, df.index), pd.Series(lhf, df.index), t_s)
     out["obs_lowering"], out["obs_dt_h"] = observed_lowering(df)

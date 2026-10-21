@@ -1,13 +1,13 @@
 station,variabele,sprong_type1_min_type0,sprong_relatief_tov_AWS6
 AWS10,T,-1.72,-0.52
 AWS10,ff,-0.62,-0.4
-AWS10,SHF,-7.5,0.04
+AWS10,SHF,-5.86,-0.35
 AWS5,T,-1.02,-0.9
 AWS5,ff,-0.67,-0.4
-AWS5,SHF,-30.46,-30.17
+AWS5,SHF,-31.54,-32.19
 AWS6,T,-0.09,
 AWS6,ff,-0.67,
-AWS6,SHF,-5.32,
+AWS6,SHF,-3.03,
 AWS9,T,-0.61,-0.17
 AWS9,ff,-0.96,-0.42
-AWS9,SHF,-1.71,6.44
+AWS9,SHF,-1.37,4.01
