@@ -250,7 +250,7 @@ def plot_monthly_seb(stations=STATIONS, out="figure4_monthly_seb.png"):
     fig.savefig(out, dpi=300, bbox_inches="tight")
     plt.close(fig)
 
-def plot_hourly_case_study(station="AWS5", start="2010-08-01", end="2010-08-07",
+def plot_hourly_case_study(station="AWS9", start="2012-08-07", end="2012-08-14",
                            out="figure5_hourly_case_study.png"):
     ts = mc.melt_station(station)
     ts = ts.loc[(ts.index >= pd.Timestamp(start)) & (ts.index < pd.Timestamp(end))]
@@ -394,8 +394,8 @@ def print_paper_tables(correlations: pd.DataFrame, trends: pd.DataFrame) -> None
 def main():
     parser = argparse.ArgumentParser(description=__doc__)
     parser.add_argument("--out", default=str(mc.ROOT / "output" / "paper_reproduction"))
-    parser.add_argument("--case-start", default="2010-08-01")
-    parser.add_argument("--case-end", default="2010-08-07")
+    parser.add_argument("--case-start", default="2012-08-15")
+    parser.add_argument("--case-end", default="2012-08-21")
     args = parser.parse_args()
     out = Path(args.out); out.mkdir(parents=True, exist_ok=True)
 
