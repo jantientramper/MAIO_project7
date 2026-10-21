@@ -57,7 +57,7 @@ LF = 3.34e5             # smeltwarmte (J kg-1)
 LV = 2.501e6            # verdampingswarmte (J kg-1)
 LS = LV + LF            # sublimatiewarmte (J kg-1)
 T0 = 273.15             # smeltpunt (K)
-RHO_ICE = 900.0         # dichtheid ijs voor omrekenen gemeten verlaging (kg m-3)
+RHO_ICE = 910.0         # dichtheid ijs voor omrekenen gemeten verlaging (kg m-3)
 
 # Instellingen SEB
 T_MELT_TOL = 0.5        # Ts binnen 0.5 K van smeltpunt -> smeltend oppervlak
@@ -389,7 +389,7 @@ def plot_calc_vs_obs(long, freq, out):
 
 def main():
     ap = argparse.ArgumentParser(description=__doc__, formatter_class=argparse.RawDescriptionHelpFormatter)
-    ap.add_argument("--freq", default="D", help="tijdseenheid: h, D, W, M, Y (default D)")
+    ap.add_argument("--freq", default="Y", help="tijdseenheid: h, D, W, M, Y (default D)")
     ap.add_argument("--stations", nargs="+", default=ALL_STATIONS, choices=ALL_STATIONS)
     ap.add_argument("--start", help="begindatum, bv. 2019-06-01")
     ap.add_argument("--end", help="einddatum (exclusief), bv. 2019-09-01")
@@ -446,39 +446,31 @@ def main():
 if __name__ == "__main__":
     main()
 
-def case_study(station, day, pad=3):
-    df = load_aws(station)
-    ts = melt_aws(station, df)
-    t0 = pd.Timestamp(day) - pd.Timedelta(days=pad)
-    t1 = pd.Timestamp(day) + pd.Timedelta(days=pad + 1)
-    d, s = df.loc[t0:t1], ts.loc[t0:t1]
-    dt_h = (s.index.to_series().diff().shift(-1).dt.total_seconds() / 3600).clip(upper=1.0)
-    calc = (s["M"] * dt_h * 3600 / LF).cumsum()          # mm w.e.
-    obs = (s["obs_lowering"] * RHO_ICE).cumsum()
+    stake = {   # net surface mass balance (m w.e.), mass balance year ending late August
+    "AWS5": {2004: -3.99, 2005: -3.63, 2006: -3.70, 2007: -4.19, 2008: -4.10, 2009: -3.38, 2010: -5.12},
+    "AWS6": {2004: -1.47, 2005: -1.28, 2006: -1.50, 2007: -2.00, 2008: -1.48, 2009: -1.34, 2010: -2.95},
+}
 
-    fig, axes = plt.subplots(3, 1, figsize=(10, 9), sharex=True)
-    cols = {"SWnet": "#2a78d6", "LWnet": "#eb6834", "SHF": "#1baf7a", "LHF": "#eda100", "M": "#000000"}
-    for c, col in cols.items():
-        axes[0].plot(s.index, s[c], color=col, lw=2.5 if c == "M" else 1.5, label=c)
-    axes[0].axhline(0, color="#888888", lw=0.8)
-    axes[0].set_ylabel("W m$^{-2}$")
-    axes[0].legend(ncol=5, frameon=False)
+rows = []
+for st in ["AWS5", "AWS6", "AWS9", "AWS10"]:
+    ts = melt_station(st)
+    s = ts[ts.index.month.isin([6, 7, 8])]
+    g = s.groupby(s.index.year)
+    jja = g[["SWnet", "LWnet", "SHF", "LHF", "M"]].mean()
+    jja["Rnet"] = jja["SWnet"] + jja["LWnet"]
+    jja = jja[s["M"].notna().groupby(s.index.year).mean() >= 0.8]    # enough data
+    jja = jja[(jja.index >= 2004) & (jja.index <= 2016)]    # same summers as the pape
+    r = jja.corr()["M"][["SWnet", "LWnet", "Rnet", "SHF", "LHF"]].round(2)
+    r.name = f"{st} (n={len(jja)})"
+    rows.append(r)
+print(pd.DataFrame(rows).T)
 
-    axes[1].plot(d.index, d["TTT"], color="#c0392b", lw=1.5)
-    axes[1].set_ylabel("air temperature (°C)")
-    w = axes[1].twinx()
-    w.plot(d.index, d["ff"], color="#444444", lw=1.5)
-    w.set_ylabel("wind speed (m/s)")
-
-    axes[2].plot(s.index, calc, color=COLORS[station], lw=2, label="calculated")
-    axes[2].plot(s.index, obs, color="#444444", lw=2, label="observed")
-    axes[2].set_ylabel("cumulative melt (mm w.e.)")
-    axes[2].legend(frameon=False)
-
-    axes[0].set_title(f"{station}: {day} ±{pad} days")
-    for ax in axes:
-        style(ax)
-    fig.tight_layout()
-    plt.show()
-
-case_study("AWS5", "2021-08-14")
+rows = {}
+for st in ["AWS5", "AWS6", "AWS9"]:
+    df = load_aws(st)
+    j = df[df.index.month.isin([6, 7, 8])]
+    g = j.groupby(j.index.year)
+    rows[(st, "SWD")] = g["SWD"].mean()
+    rows[(st, "albedo")] = g["SWU"].sum() / g["SWD"].sum()
+tab = pd.DataFrame(rows).round(2)
+print(tab)
