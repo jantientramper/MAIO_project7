@@ -17,6 +17,8 @@ import matplotlib.pyplot as plt
 import matplotlib.dates as mdates
 from scipy import stats
 import melt_comparison as mc
+from matplotlib.lines import Line2D
+
 
 STATIONS = mc.AWS_STATIONS
 COMPONENTS = ["SWnet", "LWnet", "SHF", "LHF"]
@@ -250,7 +252,7 @@ def plot_monthly_seb(stations=STATIONS, out="figure4_monthly_seb.png"):
     fig.savefig(out, dpi=300, bbox_inches="tight")
     plt.close(fig)
 
-def plot_hourly_case_study(station="AWS9", start="2012-08-07", end="2012-08-14",
+def plot_hourly_case_study(station="AWS9", start="2012-07-07", end="2012-07-14",
                            out="figure5_hourly_case_study.png"):
     ts = mc.melt_station(station)
     ts = ts.loc[(ts.index >= pd.Timestamp(start)) & (ts.index < pd.Timestamp(end))]
@@ -258,25 +260,82 @@ def plot_hourly_case_study(station="AWS9", start="2012-08-07", end="2012-08-14",
         warnings.warn(f"No observations for {station} in {start} to {end}; case-study plot skipped.")
         return
     df = mc.load_aws(station) if station in mc.AWS_STATIONS else None
-    fig, ax = plt.subplots(figsize=(11, 5))
+
+    ccol = {"SWnet": "#12A1CD", "LWnet": "#DEAF14", "SHF": "#34C97A", "LHF": "#BB69DE"}
+
+    fig, ax = plt.subplots(figsize=(9, 5))
+
+    line_colors = []
     for c in COMPONENTS + ["M"]:
         if c in ts:
-            ax.plot(ts.index, ts[c], lw=1.2, label=c)
-    ax.axhline(0, color="black", lw=.7)
-    ax.set_ylabel("Energy flux (W m$^{-2}$)")
-    ax.set_xlabel("Date")
+            color = ccol.get(c, "0.3")          # melt (M) falls back to gray 0.3
+            label = "Melt" if c == "M" else c
+            ax.plot(ts.index, ts[c], color=color, lw=2.5, label=label)
+            line_colors.append(color)
+
+    # left axis: -100..300 ticks, extra headroom above for the wind curve
+    ax.set_ylim(-100, 504)
+    ax.set_yticks([-100, 0, 100, 200, 300])
+    ax.set_ylabel("Energy flux (W m$^{-2}$)", fontsize=13, y=0.33)
+    ax.set_xlim(ts.index[0], ts.index[-1])
+
+    # x axis: one label per day centred at noon, dotted line at each midnight
+    days = pd.date_range(pd.Timestamp(start).normalize(), pd.Timestamp(end).normalize(), freq="D")
+    for d in days:
+        ax.axvline(d, color="k", ls=":", lw=0.8)
+    noons = [d + pd.Timedelta(hours=12) for d in days[:-1]]
+    ax.set_xticks(noons)
+    ax.set_xticklabels([d.strftime("%-d-%b-%Y") for d in noons], fontsize=11)
+    ax.tick_params(axis="x", length=0)
+    ax.grid(True, axis="y", ls=":", color="k", lw=0.8)
+
+    # wind speed on the right axis; 0 m/s sits at 300 W m-2, 7.5 m/s ≈ 100 W m-2 higher
+    ax2 = ax.twinx()
     if df is not None and "ff" in df:
         wind = df["ff"].reindex(ts.index)
-        ax2 = ax.twinx()
-        ax2.plot(wind.index, wind, color="0.25", lw=1, ls="--", label="Wind speed")
-        ax2.set_ylabel("Wind speed (m s$^{-1}$)")
-        h1, l1 = ax.get_legend_handles_labels(); h2, l2 = ax2.get_legend_handles_labels()
-        ax.legend(h1 + h2, l1 + l2, ncol=3, frameon=False, fontsize=8)
-    else:
-        ax.legend(ncol=3, frameon=False, fontsize=8)
-    ax.set_title(f"{station}: {start} to {end} (G = 0)")
-    ax.grid(True, alpha=.25)
-    fig.tight_layout(); fig.savefig(out, dpi=300, bbox_inches="tight"); plt.close(fig)
+        ax2.plot(wind.index, wind, color="#5E5D5DB1", lw=2.5)
+    ax2.set_ylim(-30, 15)                    # maps onto ax ylim (-100, 504)
+    ax2.set_yticks([0, 7.5, 15])
+    ax2.set_yticklabels(["0", "7.5", "15"])
+    ax2.set_ylabel("10-m wind speed (m s$^{-1}$)", fontsize=13, rotation=270, labelpad=20, y=0.7)
+
+    # legend: upper right, colored line handles, black text, with box
+    ax.legend(ncol=2, frameon=True, fontsize=12, loc="upper right",
+              handlelength=2.5, columnspacing=1)
+    ax.tick_params(axis="y", labelsize=12)
+    ax.tick_params(axis="x", labelsize=12)
+    ax2.tick_params(axis="y", labelsize=12)
+    fig.tight_layout()
+    fig.savefig(out, dpi=600, bbox_inches="tight")
+    plt.close(fig)
+
+# def plot_hourly_case_study(station="AWS9", start="2012-07-07", end="2012-07-14",
+#                            out="figure5_hourly_case_study.png"):
+#     ts = mc.melt_station(station)
+#     ts = ts.loc[(ts.index >= pd.Timestamp(start)) & (ts.index < pd.Timestamp(end))]
+#     if ts.empty:
+#         warnings.warn(f"No observations for {station} in {start} to {end}; case-study plot skipped.")
+#         return
+#     df = mc.load_aws(station) if station in mc.AWS_STATIONS else None
+#     fig, ax = plt.subplots(figsize=(11, 5))
+#     for c in COMPONENTS + ["M"]:
+#         if c in ts:
+#             ax.plot(ts.index, ts[c], lw=1.2, label=c)
+#     ax.axhline(0, color="black", lw=.7)
+#     ax.set_ylabel("Energy flux (W m$^{-2}$)")
+#     ax.set_xlabel("Date")
+#     if df is not None and "ff" in df:
+#         wind = df["ff"].reindex(ts.index)
+#         ax2 = ax.twinx()
+#         ax2.plot(wind.index, wind, color="0.25", lw=1, ls="--", label="Wind speed")
+#         ax2.set_ylabel("Wind speed (m s$^{-1}$)")
+#         h1, l1 = ax.get_legend_handles_labels(); h2, l2 = ax2.get_legend_handles_labels()
+#         ax.legend(h1 + h2, l1 + l2, ncol=3, frameon=False, fontsize=8)
+#     else:
+#         ax.legend(ncol=3, frameon=False, fontsize=8)
+#     ax.set_title(f"{station}: {start} to {end}")
+#     ax.grid(True, alpha=.25)
+#     fig.tight_layout(); fig.savefig(out, dpi=300, bbox_inches="tight"); plt.close(fig)
 
 
 def plot_jja_fluxes_by_melt_rank(stations=STATIONS, out="figure6_jja_fluxes_by_melt_rank.png"):
@@ -300,7 +359,7 @@ def plot_jja_fluxes_by_melt_rank(stations=STATIONS, out="figure6_jja_fluxes_by_m
     fig.tight_layout(); fig.savefig(out, dpi=300, bbox_inches="tight"); plt.close(fig)
 
 def plot_annual_jja_melt(stations=STATIONS, out="figure8_annual_jja_melt.png"):
-    fig, ax = plt.subplots(figsize=(12, 6))
+    fig, ax = plt.subplots(figsize=(8, 4))
     all_years = []
     for st in stations:
         annual = calculate_period_summary(st, "Y")
@@ -309,26 +368,57 @@ def plot_annual_jja_melt(stations=STATIONS, out="figure8_annual_jja_melt.png"):
         if not annual.empty:
             years = annual.index.year
             all_years.extend(list(years))
-            line, = ax.plot(years, annual["melt_energy_MJ_m2"], marker="o", ms=4,
-                            lw=1.6, ls="-", color=color, label=f"{st} annual")
+            line, = ax.plot(years, annual["melt_energy_MJ_m2"], marker="o", ms=8,
+                            lw=2.5, ls="-", color=color, label=f"{st} annual")
             color = line.get_color()
         if not jja.empty:
             all_years.extend(list(jja.index))
-            ax.plot(jja.index, jja["melt_energy_MJ_m2"], marker="o", ms=4,
-                    markerfacecolor="white", markeredgecolor=color, lw=1.6,
+            ax.plot(jja.index, jja["melt_energy_MJ_m2"], marker="o", ms=8,
+                    markerfacecolor="white", markeredgecolor=color, lw=2.5,
                     ls="--", color=color, label=f"{st} JJA")
     if all_years:
         first_year, last_year = int(min(all_years)), int(max(all_years))
         ax.set_xticks(np.arange(first_year, last_year + 1, 1))
-        ax.set_xlim(first_year - 0.25, last_year + 0.25)
+        ax.set_xlim(first_year + 0.75, last_year + 0.25)
         ax.tick_params(axis="x", labelrotation=45)
-    ax.set_ylabel("Total melt energy (MJ m$^{-2}$)")
-    ax.set_xlabel("Calendar year")
-    ax.set_title("Annual and JJA total melt energy (G = 0)")
-    ax.grid(True, alpha=.25)
-    ax.legend(frameon=False, ncol=2)
+    ax.set_ylabel("Total melt energy [MJ m$^{-2}$]", fontsize=12)
+    ax.set_xlabel("Year", fontsize=12)
+    ax.grid(True, linestyle="--", linewidth=0.7, alpha=0.25)
+
+    style_handles = [
+        Line2D([0], [0], color="black", lw=2.5, ls="-",
+            marker="o", markersize=7, label="Annual"),
+        Line2D([0], [0], color="black", lw=2.5, ls="--",
+            marker="o", markerfacecolor="white",
+            markeredgecolor="black", markersize=7, label="JJA"),]
+
+    leg1 = ax.legend(
+        handles=style_handles,
+        loc="upper left",
+        frameon=True)
+
+    ax.add_artist(leg1)
+
+    station_handles = [Line2D(
+            [0], [0],
+            marker="o",
+            linestyle="none",
+            color=COLORS[st],
+            markersize=8,
+            label=st)
+        for st in stations]
+
+    leg2 = ax.legend(
+        handles=station_handles,
+        loc="upper right", ncol=2,
+        frameon=True,
+        labelcolor="black",
+        handletextpad=0.6)
+
+    ax.add_artist(leg2)
+
     fig.tight_layout()
-    fig.savefig(out, dpi=300, bbox_inches="tight")
+    fig.savefig(out, dpi=600, bbox_inches="tight")
     plt.close(fig)
 
 

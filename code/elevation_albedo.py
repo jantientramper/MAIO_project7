@@ -260,18 +260,24 @@ def plot_gradients(clim_full, clim_common, grads, out):
 
 def plot_partition(clim_full, out):
     comp = ["SWnet", "LWnet", "SHF", "LHF"]
-    ccol = {"SWnet": "#2a78d6", "LWnet": "#eb6834", "SHF": "#1baf7a", "LHF": "#eda100"}
+    ccol = {
+    "SWnet": "#2687BF",
+    "LWnet": "#DFCC38",
+    "SHF":   "#50B57F",
+    "LHF":   "#BA7DD4"}
+    # ccol = {"SWnet": "#278BB6", "LWnet": "#D7CF31", "SHF": "#33B422", "LHF": "#CE48A8"}
     d = clim_full.sort_values("elevation")
-    fig, ax = plt.subplots(figsize=(9, 4.5))
+    fig, ax = plt.subplots(figsize=(7, 4))
     w = 0.8 / len(comp)
     xs = np.arange(len(d))
     for i, c in enumerate(comp):
         ax.bar(xs + (i - 1.5) * w, d[c], width=w * 0.92, color=ccol[c], label=c)
     ax.axhline(0, color="#52514e", lw=0.8)
-    ax.set_xticks(xs, [f"{s}\n{int(e)} m" for s, e in zip(d.index, d["elevation"])])
-    ax.set_ylabel("W m$^{-2}$ (JJA mean)")
-    ax.set_title("Summer surface energy balance components, from low to high elevation")
-    ax.legend(frameon=False, ncol=4, loc="upper center", bbox_to_anchor=(0.5, -0.15))
+    ax.set_xticks(xs, [rf"$\mathbf{{{s}}}$" + f"\n{int(e)} m"for s, e in zip(d.index, d["elevation"])], fontsize=11)
+    ax.set_ylabel("W m$^{-2}$ [JJA mean]", fontsize=12)
+    ax.tick_params(axis="y", labelsize=11)
+    ax.set_title("Summer surface energy balance components",fontsize=13)
+    ax.legend(frameon=False, ncol=4, loc="upper center", bbox_to_anchor=(0.5, -0.15), fontsize=11)
     mc.style(ax)
     fig.tight_layout()
     fig.savefig(out, dpi=600)

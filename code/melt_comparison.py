@@ -82,20 +82,18 @@ Z0M_VALID = (1e-5, 0.5)  # bruikbare z0m-waarden uit de fluxbestanden (m)
 NU_AIR = 1.46e-5         # kinematische viscositeit lucht (m2/s) voor R* = u* z0 / nu
 
 AWS_STATIONS = ["AWS5", "AWS6", "AWS9", "AWS10"]
-FLUX_STATIONS = ["SHR"]   # S5 = zelfde locatie als AWS5, daarom niet meegenomen
-ALL_STATIONS = AWS_STATIONS + FLUX_STATIONS
+# FLUX_STATIONS = ["SHR"]   # S5 = zelfde locatie als AWS5, daarom niet meegenomen
+ALL_STATIONS = AWS_STATIONS #+ FLUX_STATIONS
 
 # Vaste kleur per station (categorisch palet, vaste volgorde)
 # Engelse namen van de tijdseenheden voor de figuurteksten
 FREQ_NAMES = {"h": "hour", "D": "day", "W": "week", "M": "month", "Y": "year"}
 
-COLORS = {"AWS5": "#0e8a8a",  
-          "AWS6": "#e5a50a",   
-          "AWS9": "#6aa121",   
-          "AWS10": "#7b3fa0",  
-          "SHR": "#d6453d"}   
-
-
+COLORS = {
+    "AWS5":  "#2878B5",  # oceaanblauw
+    "AWS6":  "#F2B705",  # geel-oranje
+    "AWS9":  "#56B4E9",  # lichtblauw
+    "AWS10": "#BC7605"}
 # ---------------------------------------------------------------------------
 # Inlezen
 # ---------------------------------------------------------------------------
@@ -430,28 +428,27 @@ def plot_calc_vs_obs(long, freq, out):
     sub = long.dropna(subset=["melt_mmwe", "obs_melt_mmwe_ice"])
     if sub.empty:
         return
-    fig, ax = plt.subplots(figsize=(5.5, 5.5))
+    fig, ax = plt.subplots(figsize=(4.5, 4.5))
     stations = [s for s in ALL_STATIONS if s in set(sub["station"])]
     for st in stations:
         d = sub[sub["station"] == st]
-        ax.scatter(d["obs_melt_mmwe_ice"], d["melt_mmwe"], s=30, alpha=0.75,
+        ax.scatter(d["obs_melt_mmwe_ice"], d["melt_mmwe"], s=50, alpha=0.9,
                    color=COLORS[st], edgecolor="none")
     lim = [0, max(sub["melt_mmwe"].max(), sub["obs_melt_mmwe_ice"].max()) * 1.05]
-    ax.plot(lim, lim, color="#a8a7a2", lw=1, ls="--")
+    ax.plot(lim, lim, color="#a8a7a2", lw=1.5, ls="--")
     ax.set_xlim(lim)
     ax.set_ylim(lim)
     ax.set_aspect("equal")
-    ax.set_xlabel(f"Observed (mm w.e. per {FREQ_NAMES.get(freq, freq)})")
-    ax.set_ylabel(f"Calculated SEB (mm w.e. per {FREQ_NAMES.get(freq, freq)})")
-    ax.set_title("Calculated vs observed melt")
+    ax.set_xlabel(f"Observed [mm w.e. per {FREQ_NAMES.get(freq, freq)}]")
+    ax.set_ylabel(f"Calculated SEB [mm w.e. per {FREQ_NAMES.get(freq, freq)}]")
 
     handles = [Line2D([], [], marker="o", ls="", markersize=8,
                       color=COLORS[st], label=st) for st in stations]
     ax.legend(handles=handles, loc="upper left", frameon=True, facecolor="white",
-              edgecolor="#a8a7a2", framealpha=1, borderpad=0.8, labelspacing=0.6)
+              edgecolor="#a8a7a2", framealpha=1, borderpad=0.4, labelspacing=0.4)
 
     style(ax)
-    ax.grid(axis="x", color="#e5e4e0", lw=0.8)
+    ax.grid(True, linestyle="--", linewidth=0.7, alpha=0.6)
     fig.tight_layout()
     fig.savefig(out, dpi=600)
     plt.close(fig)
