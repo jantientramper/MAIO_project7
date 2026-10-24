@@ -297,7 +297,7 @@ def plot_hourly_case_study(station="AWS9", start="2012-07-07", end="2012-07-14",
     ax2.set_ylim(-30, 15)                    # maps onto ax ylim (-100, 504)
     ax2.set_yticks([0, 7.5, 15])
     ax2.set_yticklabels(["0", "7.5", "15"])
-    ax2.set_ylabel("10-m wind speed (m s$^{-1}$)", fontsize=13, rotation=270, labelpad=20, y=0.7)
+    ax2.set_ylabel("10-m wind speed (m s$^{-1}$)", fontsize=13, rotation=270, labelpad=20, y=0.75)
 
     # legend: upper right, colored line handles, black text, with box
     ax.legend(ncol=2, frameon=True, fontsize=12, loc="upper right",

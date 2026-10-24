@@ -261,10 +261,10 @@ def plot_gradients(clim_full, clim_common, grads, out):
 def plot_partition(clim_full, out):
     comp = ["SWnet", "LWnet", "SHF", "LHF"]
     ccol = {
-    "SWnet": "#2687BF",
-    "LWnet": "#DFCC38",
+    "SWnet": "#12A1CD",
+    "LWnet": "#EABE2E",
     "SHF":   "#50B57F",
-    "LHF":   "#BA7DD4"}
+    "LHF":   "#BB69DE"}
     # ccol = {"SWnet": "#278BB6", "LWnet": "#D7CF31", "SHF": "#33B422", "LHF": "#CE48A8"}
     d = clim_full.sort_values("elevation")
     fig, ax = plt.subplots(figsize=(7, 4))
@@ -276,7 +276,7 @@ def plot_partition(clim_full, out):
     ax.set_xticks(xs, [rf"$\mathbf{{{s}}}$" + f"\n{int(e)} m"for s, e in zip(d.index, d["elevation"])], fontsize=11)
     ax.set_ylabel("W m$^{-2}$ [JJA mean]", fontsize=12)
     ax.tick_params(axis="y", labelsize=11)
-    ax.set_title("Summer surface energy balance components",fontsize=13)
+    ax.set_title("Summer SEB components",fontsize=13)
     ax.legend(frameon=False, ncol=4, loc="upper center", bbox_to_anchor=(0.5, -0.15), fontsize=11)
     mc.style(ax)
     fig.tight_layout()
