@@ -87,7 +87,7 @@ Voor elk station en elke zomer (juni–augustus, JJA) zijn gemiddeld: temperatuu
 
 ### Wat er gevonden is
 
-**Verandering met de hoogte** ([figuur](output/elevation/elevation_gradients.png)):
+**Verandering met de hoogte** ([figuur temperatuur en albedo](output/elevation/elevation_T_albedo.png), [figuur energiebalans en smelt](output/elevation/elevation_gradients.png)):
 
 | Grootheid | Verandering per 100 m hoger | R² |
 |---|---|---|

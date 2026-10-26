@@ -97,6 +97,8 @@ def jja_summary(station):
     seb = mc.melt_aws(station, df)
     alb_d = daily_albedo(df)
     clim = climatological_albedo(alb_d)
+    yrs_alb = alb_d.dropna().index.year
+    clim.attrs["period"] = f"{yrs_alb.min()}–{yrs_alb.max()}"   # jaren in de klimatologie
     seb_clim = melt_with_clim_albedo(station, df, clim)
 
     sel = df.index.month.isin(JJA)
@@ -229,31 +231,95 @@ def style(ax):
     ax.grid(axis="x", color="#e5e4e0", lw=0.8)
 
 
+# Vorm per station en kleur per serie voor de hoogtefiguur
+STATION_MARKERS = {"AWS5": "o", "AWS6": "s", "AWS9": "^", "AWS10": "*"}
+MARKER_SIZE = {"*": 170}   # ster oogt klein, daarom groter
+SERIES_COLORS = {"SWnet": "#2a78d6", "LWnet": "#eb6834", "SHF": "#1baf7a", "melt": "#6250d6"}
+NEUTRAL = "#52514e"
+
+
+def _gradient_series(ax, clim, v, color, label):
+    """Punten per station (eigen vorm) plus lineaire fit, in een kleur."""
+    for st, row in clim.iterrows():
+        m = STATION_MARKERS[st]
+        ax.scatter(row[v], row["elevation"], s=MARKER_SIZE.get(m, 80), marker=m, color=color,
+                   edgecolor="white", lw=1, zorder=3)
+    r = regress(clim["elevation"].values, clim[v].values)
+    z = np.linspace(clim["elevation"].min(), clim["elevation"].max(), 10)
+    line, = ax.plot(r["intercept"] + r["slope"] * z, z, color=color, lw=2, ls="--", zorder=2, label=label)
+    return line
+
+
+def _station_legend(clim):
+    from matplotlib.lines import Line2D
+    return [Line2D([], [], ls="", marker=STATION_MARKERS[st], ms=13 if STATION_MARKERS[st] == "*" else 9,
+                   color=NEUTRAL, mec="white", label=f"{st} ({int(clim.loc[st, 'elevation'])} m)")
+            for st in clim.index]
+
+
 def plot_gradients(clim_full, clim_common, grads, out):
-    panels = ["T", "albedo", "SWnet", "SHF", "LWnet", "melt"]
-    fig, axes = plt.subplots(2, 3, figsize=(12, 7))
-    for ax, v in zip(axes.flat, panels):
-        for st, row in clim_full.iterrows():
-            ax.scatter(row[v], row["elevation"], s=60, color=mc.COLORS[st], zorder=3,
-                       edgecolor="white", lw=1.5, label=st)
-            ax.annotate(st, (row[v], row["elevation"]), xytext=(6, 4),
-                        textcoords="offset points", fontsize=8, color="#52514e")
-        ax.scatter(clim_common[v], clim_common["elevation"], s=28, marker="D",
-                   facecolor="none", edgecolor="#52514e", lw=1, zorder=4)
+    """Twee figuren: temperatuur en albedo (out_T_albedo) en energiebalans + smelt (out)."""
+    # --- figuur 1: temperatuur en albedo ---
+    fig, (ax_t, ax_a) = plt.subplots(1, 2, figsize=(10, 5.6), sharey=True)
+    for a, v in [(ax_t, "T"), (ax_a, "albedo")]:
+        _gradient_series(a, clim_full, v, NEUTRAL, None)
         g = grads.loc[v]
-        z = np.linspace(clim_full["elevation"].min(), clim_full["elevation"].max(), 10)
-        r = regress(clim_full["elevation"].values, clim_full[v].values)
-        ax.plot(r["intercept"] + r["slope"] * z, z, color="#a8a7a2", lw=1.2, ls="--", zorder=2)
         unit = "" if VARS[v][1] == "-" else f" {VARS[v][1]}"
-        ax.set_title(f"{VARS[v][0]}\n{g.gradient_per_100m:+.3g}{unit} per 100 m  (R²={g.r2:.2f})",
-                     fontsize=10)
-        ax.set_xlabel(VARS[v][1])
-        style(ax)
-    for ax in axes[:, 0]:
-        ax.set_ylabel("elevation (m)")
-    fig.text(0.01, 0.005, "● JJA mean over all years per station   ◇ common period "
-             "(all 4 stations)   -- linear fit", fontsize=8, color="#52514e")
-    fig.tight_layout(rect=(0, 0.02, 1, 1))
+        a.set_title(f"{VARS[v][0]}\n{g.gradient_per_100m:+.3g}{unit} per 100 m  (R²={g.r2:.2f})", fontsize=10)
+        a.set_xlabel(VARS[v][0] if VARS[v][1] == "-" else f"{VARS[v][0]} ({VARS[v][1]})")
+        style(a)
+    ax_t.set_ylabel("Elevation (m)")
+    fig.legend(handles=_station_legend(clim_full), frameon=False, fontsize=9, loc="lower center",
+               bbox_to_anchor=(0.5, 0.06), ncol=4)
+    fig.text(0.01, 0.015, "Points: JJA mean over all years per station.  Dashed: linear fit.",
+             fontsize=8, color="#52514e")
+    fig.tight_layout(rect=(0, 0.13, 1, 1))
+    fig.savefig(out.with_name("elevation_T_albedo.png"), dpi=600)
+    plt.close(fig)
+
+    # --- figuur 2: energiebalanstermen (onderste x-as) en smelt (bovenste x-as) ---
+    fig, ax = plt.subplots(figsize=(9, 7.2))
+
+    def lab(v):
+        g = grads.loc[v]
+        return f"{VARS[v][0]}: {g.gradient_per_100m:+.3g} {VARS[v][1]} per 100 m (R²={g.r2:.2f})"
+
+    lines = [_gradient_series(ax, clim_full, v, SERIES_COLORS[v], lab(v)) for v in ["SWnet", "LWnet", "SHF"]]
+    ax.axvline(0, color="#a8a7a2", lw=0.8, zorder=1)
+    ax.set_xlabel("Energy flux, JJA mean (W/m²)")
+    ax.set_ylabel("Elevation (m)")
+    style(ax)
+    top = ax.twiny()
+    melt_line = _gradient_series(top, clim_full, "melt", SERIES_COLORS["melt"], lab("melt"))
+    lines.append(melt_line)
+    # schaal van de bovenste as: de smeltfit valt precies midden tussen de fits van SHF en
+    # SWnet (op de laagste en hoogste stationshoogte), zodat de lijnen elkaar niet kruisen
+    z_ends = np.array([clim_full["elevation"].min(), clim_full["elevation"].max()])
+    def fit_at(v):
+        r = regress(clim_full["elevation"].values, clim_full[v].values)
+        return r["intercept"] + r["slope"] * z_ends
+    w_target = (fit_at("SHF") + fit_at("SWnet")) / 2          # W/m² op de onderste as
+    m_fit = fit_at("melt")                                      # mm w.e. op de bovenste as
+    b = (w_target[1] - w_target[0]) / (m_fit[1] - m_fit[0])     # W/m² per mm w.e.
+    a = w_target[0] - b * m_fit[0]
+    x0, x1 = ax.get_xlim()
+    top.set_xlim((x0 - a) / b, (x1 - a) / b)
+    top.set_xticks([t for t in top.get_xticks() if 0 <= t <= top.get_xlim()[1]])   # geen negatieve smelt
+    # bovenste as in de kleur van de smeltlijn, zodat duidelijk is welke serie erbij hoort
+    melt_color = melt_line.get_color()
+    top.set_xlabel("JJA melt (mm w.e.)", color=melt_color)
+    top.tick_params(axis="x", colors=melt_color)
+    top.spines["top"].set_color(melt_color)
+    ax.set_title("Surface energy balance and melt vs elevation", fontsize=11, pad=12)
+
+    # legenda's: kleur = serie, vorm = station
+    fig.legend(handles=_station_legend(clim_full), frameon=False, fontsize=9, loc="lower left",
+               bbox_to_anchor=(0.01, 0.175), ncol=4, title="Station (marker)", title_fontsize=9)
+    fig.legend(handles=lines, frameon=False, fontsize=9, loc="lower left",
+               bbox_to_anchor=(0.01, 0.03), ncol=1, title="Series (colour)", title_fontsize=9)
+    fig.text(0.99, 0.015, "Points: JJA mean over all years per station.  Dashed: linear fit.",
+             fontsize=8, color="#52514e", ha="right")
+    fig.tight_layout(rect=(0, 0.24, 1, 1))
     fig.savefig(out, dpi=600)
     plt.close(fig)
 
@@ -309,19 +375,20 @@ def plot_albedo_climatology(clims, years, out):
     fig, (ax1, ax2) = plt.subplots(1, 2, figsize=(12, 4.5))
     for st, c in clims.items():
         c = c.loc[120:270]
-        ax1.plot(c.index, c.values, lw=2, color=mc.COLORS[st], label=st)
+        ax1.plot(c.index, c.values, lw=2, color=mc.COLORS[st], label=f"{st} ({c.attrs.get('period', '?')})")
     ax1.set_xlabel("Day of year")
     ax1.set_ylabel("Albedo")
-    ax1.set_title("Climatological albedo (median, 15-day smoothed)")
-    ax1.legend(frameon=False)
+    ax1.set_title("Climatological albedo (median over all years, 15-day smoothed)")
+    ax1.legend(frameon=False, ncol=2, loc="upper center", bbox_to_anchor=(0.5, -0.14))
     mc.style(ax1)
     for st in mc.AWS_STATIONS:
         d = years[years["station"] == st]
-        ax2.scatter(d["albedo"], d["melt"], s=30, color=mc.COLORS[st], edgecolor="white", lw=0.5, label=st)
         r = regress(d["albedo"].values, d["melt"].values)
+        ax2.scatter(d["albedo"], d["melt"], s=70, color=mc.COLORS[st], edgecolor="white", lw=1,
+                    label=f"{st}  R² = {r['r2']:.2f}  (n = {r['n']})", zorder=3)
         if np.isfinite(r["slope"]):
             x = np.linspace(d["albedo"].min(), d["albedo"].max(), 5)
-            ax2.plot(x, r["intercept"] + r["slope"] * x, color=mc.COLORS[st], lw=1.2)
+            ax2.plot(x, r["intercept"] + r["slope"] * x, color=mc.COLORS[st], lw=2.5, zorder=2)
     ax2.set_xlabel("Mean JJA albedo")
     ax2.set_ylabel("JJA melt (mm w.e.)")
     ax2.set_title("Summer melt vs summer albedo (per year)")
