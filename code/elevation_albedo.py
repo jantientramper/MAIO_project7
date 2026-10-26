@@ -379,6 +379,63 @@ def plot_albedo_experiment(years, out):
     plt.close(fig)
 
 
+def annual_albedo(station, min_coverage=MIN_JJA_COVERAGE):
+    """Jaaralbedo als verhouding van de jaarsommen SWU/SWD (zoals paper fig. 9).
+
+    Alleen jaren waarin SWD en SWU samen minstens min_coverage van de tijd gemeten zijn.
+    """
+    df = mc.load_aws(station)
+    swd, swu = df["SWD"].clip(lower=0), df["SWU"].clip(lower=0)
+    ok = swd.notna() & swu.notna()
+    dt_h = df.index.to_series().diff().shift(-1).dt.total_seconds().div(3600).clip(upper=1.0)
+    dt_h = dt_h.fillna(dt_h.median())
+    g = df.index.year
+    hours = pd.Series(df.index.year, index=df.index).groupby(g).first().map(
+        lambda y: 8784 if pd.Timestamp(year=y, month=1, day=1).is_leap_year else 8760)
+    out = pd.DataFrame({
+        "albedo": swu.where(ok).groupby(g).sum() / swd.where(ok).groupby(g).sum(),
+        "coverage": (dt_h * ok).groupby(g).sum() / hours,
+        "aws_type": df["ID"].groupby(g).mean().round(),
+    })
+    out.index.name = "year"
+    out["station"] = station
+    return out[out["coverage"] >= min_coverage]
+
+
+def plot_annual_albedo(annual, out):
+    fig, ax = plt.subplots(figsize=(10, 4.5))
+    for st in mc.AWS_STATIONS:
+        d = annual[annual["station"] == st]
+        if d.empty:
+            continue
+        color, m = mc.COLORS[st], STATION_MARKERS[st]
+        ms = 12 if m == "*" else 8
+        # lijn onderbreken bij ontbrekende jaren
+        full = d["albedo"].reindex(range(d.index.min(), d.index.max() + 1))
+        ax.plot(full.index, full.values, color=color, lw=2, zorder=2)
+        for typ, face in [(0, color), (1, "white")]:
+            e = d[d["aws_type"] == typ]
+            ax.plot(e.index, e["albedo"], ls="", marker=m, ms=ms, mfc=face, mec=color, mew=1.5, zorder=3)
+    from matplotlib.lines import Line2D
+    st_handles = [Line2D([], [], color=mc.COLORS[st], lw=2, marker=STATION_MARKERS[st],
+                         ms=12 if STATION_MARKERS[st] == "*" else 8, label=st)
+                  for st in mc.AWS_STATIONS if st in set(annual["station"])]
+    type_handles = [Line2D([], [], ls="", marker="o", ms=8, mfc=NEUTRAL, mec=NEUTRAL, label="old AWS type (0)"),
+                    Line2D([], [], ls="", marker="o", ms=8, mfc="white", mec=NEUTRAL, mew=1.5,
+                           label="new AWS type (1)")]
+    leg = ax.legend(handles=st_handles, frameon=False, loc="upper left", bbox_to_anchor=(1.01, 1))
+    ax.add_artist(leg)
+    ax.legend(handles=type_handles, frameon=False, loc="lower left", bbox_to_anchor=(1.01, 0))
+    ax.set_xlabel("Year")
+    ax.set_ylabel("Annual albedo (ΣSWU / ΣSWD)")
+    ax.set_title("Annual mean albedo per station (years with ≥80% radiation data)", fontsize=11)
+    ax.xaxis.set_major_locator(plt.MaxNLocator(integer=True))
+    style(ax)
+    fig.tight_layout()
+    fig.savefig(out, dpi=600)
+    plt.close(fig)
+
+
 def plot_albedo_climatology(clims, years, out):
     fig, (ax1, ax2) = plt.subplots(1, 2, figsize=(12, 4.5))
     for st, c_full in clims.items():
@@ -473,6 +530,9 @@ def main():
     plot_partition(clim_full, out / "seb_partition_elevation.png")
     plot_albedo_experiment(years, out / "albedo_contribution.png")
     plot_albedo_climatology(clims, years, out / "albedo_climatology.png")
+    annual_alb = pd.concat([annual_albedo(st) for st in mc.AWS_STATIONS])
+    annual_alb.round(3).to_csv(out / "annual_albedo.csv")
+    plot_annual_albedo(annual_alb, out / "annual_albedo.png")
     print(f"\nOutput opgeslagen in {out}")
 
 
