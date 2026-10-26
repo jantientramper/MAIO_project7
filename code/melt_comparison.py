@@ -62,6 +62,11 @@ RHO_ICE = 910.0         # dichtheid ijs voor omrekenen gemeten verlaging (kg m-3
 
 # Instellingen SEB
 T_MELT_TOL = 0.5        # Ts binnen 0.5 K van smeltpunt -> smeltend oppervlak
+# Smeltmethode voor de AWS'en:
+#  "seb_ts"    : zoals het paper; Ts en G worden opgelost met de energiebalans en een
+#                ondergrondmodel (surface_temperature.py), smelt = restterm als Ts = 0 degC (uurwaarden)
+#  "threshold" : Ts uit gemeten LWU, smelt als Ts binnen T_MELT_TOL van 0 degC (G = GROUND_FLUX)
+MELT_METHOD = "seb_ts"
 GROUND_FLUX = 0.0       # warmtestroom uit het ijs naar het oppervlak (W/m2, + = naar oppervlak); 0 = verwaarloosd
 MIN_COVERAGE = 0.8      # minimale datadekking per periode, anders NaN
 Z_DEFAULT = 3.0         # meethoogte (m) als die niet bekend is
@@ -92,9 +97,11 @@ FREQ_NAMES = {"h": "hour", "D": "day", "W": "week", "M": "month", "Y": "year"}
 
 COLORS = {
     "AWS5":  "#2878B5",  # oceaanblauw
-    "AWS6":  "#F2B705",  # geel-oranje
-    "AWS9":  "#56B4E9",  # lichtblauw
-    "AWS10": "#BC7605"}
+    "AWS6":  "#56B4E9",  # ijsblauw
+    "AWS9":  "#393B79",  # diep indigo
+    "AWS10": "#A276C6",  # paars
+    "SHR":   "#008300",  # groen (eddy-covariance mast)
+}
 # ---------------------------------------------------------------------------
 # Inlezen
 # ---------------------------------------------------------------------------
@@ -262,6 +269,9 @@ def z0m_series(station, index):
 
 def melt_aws(station, df=None):
     """SEB-smelt voor een AWS; geef df mee om met aangepaste invoer te rekenen."""
+    if MELT_METHOD == "seb_ts":
+        import surface_temperature   # hier pas importeren, anders importeren ze elkaar
+        return surface_temperature.melt_coupled_cached(station, df)
     if df is None:
         df = load_aws(station)
     p = df["PPPP"] * 100
@@ -341,6 +351,8 @@ def aggregate(ts, freq, min_coverage=MIN_COVERAGE):
         "SWnet": g["SWnet"].mean(), "LWnet": g["LWnet"].mean(),
         "SHF": g["SHF"].mean(), "LHF": g["LHF"].mean(), "M": g["M"].mean(),
     })
+    if "G" in ts:
+        res["G"] = g["G"].mean()
     res["melt_mmwe"] = g["melt_rate"].mean() * period_hours
     res["melt_hours"] = (ts["dt_h"] * (ts["M"] > 0)).groupby(periods).sum()
     # gemeten verlaging: net als de berekende smelt opschalen van de gedekte tijd naar de hele periode
@@ -350,7 +362,7 @@ def aggregate(ts, freq, min_coverage=MIN_COVERAGE):
     res["obs_lowering_m"] = (obs_sum / obs_hours * period_hours).where(res["obs_coverage"] >= min_coverage)
     res["obs_melt_mmwe_ice"] = res["obs_lowering_m"] * RHO_ICE   # alleen zinvol voor kaal ijs
     bad = res["coverage"] < min_coverage
-    res.loc[bad, ["SWnet", "LWnet", "SHF", "LHF", "M", "melt_mmwe"]] = np.nan
+    res.loc[bad, [c for c in ["SWnet", "LWnet", "SHF", "LHF", "G", "M", "melt_mmwe"] if c in res]] = np.nan
     res["coverage"] = res["coverage"].clip(upper=1).round(3)
     res.index.name = "period"
     return res
@@ -406,20 +418,20 @@ def plot_timeseries(wide, freq, out):
 
 def plot_components(long, out):
     """Gemiddelde SEB-componenten tijdens perioden met smelt, per station."""
-    comp = ["SWnet", "LWnet", "SHF", "LHF"]
-    ccol = {"SWnet": "#2a78d6", "LWnet": "#eb6834", "SHF": "#1baf7a", "LHF": "#eda100"}
+    comp = ["SWnet", "LWnet", "SHF", "LHF"] + (["G"] if "G" in long and long["G"].notna().any() else [])
+    ccol = {"SWnet": "#2a78d6", "LWnet": "#eb6834", "SHF": "#1baf7a", "LHF": "#eda100", "G": "#52514e"}
     sub = long[long["melt_mmwe"] > 0].groupby("station")[comp].mean()
     sub = sub.reindex([s for s in ALL_STATIONS if s in sub.index])
     fig, ax = plt.subplots(figsize=(9, 4.5))
     w = 0.8 / len(comp)
     xs = np.arange(len(sub))
     for i, c in enumerate(comp):
-        ax.bar(xs + (i - 1.5) * w, sub[c], width=w * 0.92, color=ccol[c], label=c)
+        ax.bar(xs + (i - (len(comp) - 1) / 2) * w, sub[c], width=w * 0.92, color=ccol[c], label=c)
     ax.axhline(0, color="#52514e", lw=0.8)
     ax.set_xticks(xs, sub.index)
     ax.set_ylabel("W m$^{-2}$")
     ax.set_title("Mean surface energy balance components during melt periods")
-    ax.legend(frameon=False, ncol=4, loc="upper center", bbox_to_anchor=(0.5, -0.08))
+    ax.legend(frameon=False, ncol=len(comp), loc="upper center", bbox_to_anchor=(0.5, -0.08))
     style(ax)
     fig.tight_layout()
     fig.savefig(out, dpi=600)
@@ -515,34 +527,38 @@ def main():
     plot_calc_vs_obs(long, args.freq, out / f"melt_calc_vs_obs_{tag}.png")
     print(f"\nOutput opgeslagen in {out}")
 
+def paper_checks():
+    """Snelle vergelijking met tabel 3 en albedo/SWD uit het paper (eigen controle)."""
+    stake = {   # net surface mass balance (m w.e.), mass balance year ending late August
+        "AWS5": {2004: -3.99, 2005: -3.63, 2006: -3.70, 2007: -4.19, 2008: -4.10, 2009: -3.38, 2010: -5.12},
+        "AWS6": {2004: -1.47, 2005: -1.28, 2006: -1.50, 2007: -2.00, 2008: -1.48, 2009: -1.34, 2010: -2.95},
+    }
+
+    rows = []
+    for st in ["AWS5", "AWS6", "AWS9", "AWS10"]:
+        ts = melt_station(st)
+        s = ts[ts.index.month.isin([6, 7, 8])]
+        g = s.groupby(s.index.year)
+        jja = g[["SWnet", "LWnet", "SHF", "LHF", "M"]].mean()
+        jja["Rnet"] = jja["SWnet"] + jja["LWnet"]
+        jja = jja[s["M"].notna().groupby(s.index.year).mean() >= 0.8]    # enough data
+        jja = jja[(jja.index >= 2004) & (jja.index <= 2016)]    # same summers as the pape
+        r = jja.corr()["M"][["SWnet", "LWnet", "Rnet", "SHF", "LHF"]].round(2)
+        r.name = f"{st} (n={len(jja)})"
+        rows.append(r)
+    print(pd.DataFrame(rows).T)
+
+    rows = {}
+    for st in ["AWS5", "AWS6", "AWS9"]:
+        df = load_aws(st)
+        j = df[df.index.month.isin([6, 7, 8])]
+        g = j.groupby(j.index.year)
+        rows[(st, "SWD")] = g["SWD"].mean()
+        rows[(st, "albedo")] = g["SWU"].sum() / g["SWD"].sum()
+    tab = pd.DataFrame(rows).round(2)
+    print(tab)
+
+
 if __name__ == "__main__":
     main()
-
-    stake = {   # net surface mass balance (m w.e.), mass balance year ending late August
-    "AWS5": {2004: -3.99, 2005: -3.63, 2006: -3.70, 2007: -4.19, 2008: -4.10, 2009: -3.38, 2010: -5.12},
-    "AWS6": {2004: -1.47, 2005: -1.28, 2006: -1.50, 2007: -2.00, 2008: -1.48, 2009: -1.34, 2010: -2.95},
-}
-
-rows = []
-for st in ["AWS5", "AWS6", "AWS9", "AWS10"]:
-    ts = melt_station(st)
-    s = ts[ts.index.month.isin([6, 7, 8])]
-    g = s.groupby(s.index.year)
-    jja = g[["SWnet", "LWnet", "SHF", "LHF", "M"]].mean()
-    jja["Rnet"] = jja["SWnet"] + jja["LWnet"]
-    jja = jja[s["M"].notna().groupby(s.index.year).mean() >= 0.8]    # enough data
-    jja = jja[(jja.index >= 2004) & (jja.index <= 2016)]    # same summers as the pape
-    r = jja.corr()["M"][["SWnet", "LWnet", "Rnet", "SHF", "LHF"]].round(2)
-    r.name = f"{st} (n={len(jja)})"
-    rows.append(r)
-print(pd.DataFrame(rows).T)
-
-rows = {}
-for st in ["AWS5", "AWS6", "AWS9"]:
-    df = load_aws(st)
-    j = df[df.index.month.isin([6, 7, 8])]
-    g = j.groupby(j.index.year)
-    rows[(st, "SWD")] = g["SWD"].mean()
-    rows[(st, "albedo")] = g["SWU"].sum() / g["SWD"].sum()
-tab = pd.DataFrame(rows).round(2)
-print(tab)
+    paper_checks()

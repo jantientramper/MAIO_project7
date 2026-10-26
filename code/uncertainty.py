@@ -47,7 +47,12 @@ SENSITIVITY = {
     "meethoogte 2.5 / 4 m": "onbekende sensorhoogte type 0 (standaard 3 m)",
     "smeltdrempel 0.25 / 1 K": "drempel oppervlaktetemperatuur (standaard 0.5 K)",
     "G +10 / −10 W/m²": "warmtestroom in het ijs, standaard 0 (aanname; orde van grootte uit paper fig. 4)",
+    "datadekking 70 / 90%": "minimale dekking voor een zomer om mee te tellen (standaard 80%)",
 }
+
+SEB_VARS = ["SWnet", "LWnet", "Rnet", "SHF", "LHF", "G"]
+SEB_LABELS = {"SWnet": "Net shortwave", "LWnet": "Net longwave", "Rnet": "Net radiation",
+              "SHF": "Sensible heat", "LHF": "Latent heat", "G": "Ground heat flux"}
 
 # Tabel 3 van Kuipers Munneke et al. (2018): r met JJA-smelt, en R² albedo (fig. 7)
 PAPER_R = pd.DataFrame({
@@ -115,9 +120,9 @@ def run(station, df, z0_factor=1.0, z_default=None, t_tol=None, g_flux=None):
 
 def sensitivity(station):
     df = mc.load_aws(station)
-    base, cov = jja_melt(mc.melt_aws(station, df))
+    base_all, cov = jja_melt(mc.melt_aws(station, df))
     years = cov.index[cov >= ea.MIN_JJA_COVERAGE]
-    base = base.reindex(years)
+    base = base_all.reindex(years)
 
     def mod(**cols):
         d = df.copy()
@@ -143,6 +148,13 @@ def sensitivity(station):
         rows.append({"station": station, "parameter": name, "toelichting": SENSITIVITY[name],
                      "delta_hoog_mm": d_up, "delta_laag_mm": d_down,
                      "halve_bandbreedte_mm": (abs(d_up) + abs(d_down)) / 2})
+    # datadekking: zelfde smelt per jaar, maar een andere set jaren telt mee
+    d_cov = {thr: base_all[cov >= thr].mean() - base.mean() for thr in (0.7, 0.9)}
+    rows.append({"station": station, "parameter": "datadekking 70 / 90%",
+                 "toelichting": SENSITIVITY["datadekking 70 / 90%"],
+                 "delta_hoog_mm": d_cov[0.7], "delta_laag_mm": d_cov[0.9],
+                 "halve_bandbreedte_mm": (abs(d_cov[0.7]) + abs(d_cov[0.9])) / 2,
+                 "n_jaren_70": int((cov >= 0.7).sum()), "n_jaren_90": int((cov >= 0.9).sum())})
     out = pd.DataFrame(rows)
     out["halve_bandbreedte_pct"] = 100 * out["halve_bandbreedte_mm"] / base.mean()
     total = np.sqrt((out["halve_bandbreedte_mm"] ** 2).sum())
@@ -186,11 +198,11 @@ def correlations(years):
     for subset, sel in [("alle jaren", y), ("alleen type 0", y[y["aws_type"] == 0])]:
         for st in mc.AWS_STATIONS:
             s = sel[sel["station"] == st]
-            for v in ["SWnet", "LWnet", "Rnet", "SHF", "LHF", "albedo"]:
+            for v in [c for c in SEB_VARS + ["albedo"] if c in s and s[c].notna().any()]:
                 rc = r_ci(s[v].values, s["M"].values)
                 rows.append({"subset": subset, "station": st, "variabele": v, **rc,
                              "paper_r": (-np.sqrt(PAPER_R.loc["R2_albedo", st]) if v == "albedo"
-                                         else PAPER_R.loc[v, st])})
+                                         else PAPER_R[st].get(v, np.nan))})
     return pd.DataFrame(rows)
 
 
@@ -225,9 +237,59 @@ def albedo_share_ci(years, seed=1):
 # Figuur
 # ---------------------------------------------------------------------------
 
+def plot_correlations(years, cor, out):
+    """Per station en per SEB-term: JJA-smelt tegen de term (jaarwaarden), met r uit de tabel."""
+    y = years.copy()
+    y["M"] = y["melt"] * mc.LF / (JJA_HOURS * 3600)
+    y["Rnet"] = y["SWnet"] + y["LWnet"]
+    vars_ = [v for v in SEB_VARS if v in y and y[v].notna().any()]
+    stations = [st for st in mc.AWS_STATIONS if st in set(y["station"])]
+    fig, axes = plt.subplots(len(stations), len(vars_), figsize=(2.6 * len(vars_), 2.5 * len(stations)),
+                             sharey="row", squeeze=False)
+    c_all = cor[cor["subset"] == "alle jaren"].set_index(["station", "variabele"])
+    for i, st in enumerate(stations):
+        d = y[y["station"] == st]
+        color = mc.COLORS[st]
+        for j, v in enumerate(vars_):
+            ax = axes[i, j]
+            for typ, face in [(0, color), (1, "white")]:
+                e = d[d["aws_type"] == typ]
+                ax.scatter(e[v], e["M"], s=40, facecolor=face, edgecolor=color, lw=1.3, zorder=3)
+            ok = d[[v, "M"]].dropna()
+            if len(ok) >= 3:
+                b, a = np.polyfit(ok[v], ok["M"], 1)
+                x = np.linspace(ok[v].min(), ok[v].max(), 5)
+                ax.plot(x, a + b * x, color=color, lw=2, zorder=2)
+            if (st, v) in c_all.index:
+                c = c_all.loc[(st, v)]
+                txt = f"r = {c['r']:+.2f}\n[{c['lo']:+.2f}, {c['hi']:+.2f}]"
+                if np.isfinite(c["paper_r"]):
+                    txt += f"\npaper {c['paper_r']:+.2f}"
+                ax.text(0.04, 0.96, txt, transform=ax.transAxes, va="top", fontsize=7.5)
+            if i == 0:
+                ax.set_title(SEB_LABELS[v], fontsize=10)
+            if i == len(stations) - 1:
+                ax.set_xlabel(f"{v} (W/m²)", fontsize=9)
+            if j == 0:
+                ax.set_ylabel(f"{st}\nJJA melt (W/m²)", fontsize=9)
+            ax.tick_params(labelsize=8)
+            mc.style(ax)
+            ax.grid(axis="x", color="#e5e4e0", lw=0.8)
+    from matplotlib.lines import Line2D
+    handles = [Line2D([], [], ls="", marker="o", ms=7, mfc="#52514e", mec="#52514e", label="old AWS type (0)"),
+               Line2D([], [], ls="", marker="o", ms=7, mfc="white", mec="#52514e", mew=1.3, label="new AWS type (1)"),
+               Line2D([], [], color="#52514e", lw=2, label="linear fit (all years)")]
+    fig.legend(handles=handles, frameon=False, ncol=3, loc="lower center", fontsize=9)
+    fig.suptitle("JJA melt vs surface energy balance components (one point per summer; r with 95% CI, all years)",
+                 x=0.01, ha="left", fontsize=11)
+    fig.tight_layout(rect=(0, 0.03, 1, 0.98))
+    fig.savefig(out, dpi=600)
+    plt.close(fig)
+
+
 def plot_sensitivity(sens, summary, out):
     params = list(SENSITIVITY)
-    fig, axes = plt.subplots(1, len(mc.AWS_STATIONS), figsize=(13, 4.7), sharey=True)
+    fig, axes = plt.subplots(1, len(mc.AWS_STATIONS), figsize=(13, 5.1), sharey=True)
     for ax, st in zip(axes, mc.AWS_STATIONS):
         s = sens[sens["station"] == st].set_index("parameter").reindex(params)
         base = summary.loc[st, "jja_smelt_mm"]
@@ -237,7 +299,7 @@ def plot_sensitivity(sens, summary, out):
         ax.axvline(0, color="#52514e", lw=0.8)
         ax.set_yticks(y, ["T +0.4 / −0.4 °C", "wind +0.3 / −0.3 m/s", "SW +5 / −5%", "LWD +5 / −5 W/m²",
                           "z0m ×2 / ÷2", "sensor height 2.5 / 4 m", "melt threshold 0.25 / 1 K",
-                          "ground heat flux +10 / −10 W/m²"])
+                          "ground heat flux +10 / −10 W/m²", "data coverage ≥70 / ≥90%"])
         ax.invert_yaxis()
         ax.set_title(f"{st}  (±{summary.loc[st, 'foutmarge_pct']:.0f}% total)", loc="left", fontsize=10)
         ax.set_xlabel("change in JJA melt (%)")
@@ -263,12 +325,17 @@ def main():
     out.mkdir(parents=True, exist_ok=True)
     pd.set_option("display.width", 200)
 
+    # De gevoeligheidsanalyse draait ~70 varianten per station en test o.a. de smeltdrempel;
+    # daarom met de snelle drempelmethode (de gekoppelde Ts/G-methode kost minuten per run).
+    method = mc.MELT_METHOD
+    mc.MELT_METHOD = "threshold"
     parts, summ = [], []
     for st in mc.AWS_STATIONS:
         print(f"{st}: gevoeligheidsruns ...", flush=True)
         s, sm = sensitivity(st)
         parts.append(s)
         summ.append(sm)
+    mc.MELT_METHOD = method
     sens = pd.concat(parts)
     summary = pd.DataFrame(summ).set_index("station")
     sens.round(1).to_csv(out / "sensitivity.csv", index=False)
@@ -293,6 +360,8 @@ def main():
     cor["txt"] = cor.apply(lambda r: f"{r.r:+.2f} [{r.lo:+.2f},{r.hi:+.2f}]", axis=1)
     print(cor.pivot_table(index=["subset", "variabele"], columns="station", values="txt", aggfunc="first")
           .reindex(columns=mc.AWS_STATIONS).to_string())
+
+    plot_correlations(years, cor, out / "correlations.png")
 
     gr = gradient_ci(years)
     gr.round(3).to_csv(out / "gradient_ci.csv")

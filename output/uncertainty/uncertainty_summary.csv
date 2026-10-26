@@ -1,5 +1,5 @@
 station,n_jaren,jja_smelt_mm,foutmarge_mm,foutmarge_pct,grootste_bron,foutmarge_zonder_drempel_pct
-AWS5,18,3558.5,831.5,23.4,smeltdrempel 0.25 / 1 K,13.6
-AWS6,15,1697.2,429.8,25.3,smeltdrempel 0.25 / 1 K,10.1
-AWS9,15,951.4,236.2,24.8,smeltdrempel 0.25 / 1 K,11.4
+AWS5,18,3558.5,831.8,23.4,smeltdrempel 0.25 / 1 K,13.6
+AWS6,15,1697.2,430.0,25.3,smeltdrempel 0.25 / 1 K,10.1
+AWS9,15,951.4,236.9,24.9,smeltdrempel 0.25 / 1 K,11.6
 AWS10,5,395.6,115.1,29.1,smeltdrempel 0.25 / 1 K,16.2

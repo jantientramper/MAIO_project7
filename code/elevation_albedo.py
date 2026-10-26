@@ -110,7 +110,10 @@ def jja_summary(station):
     seb_clim = melt_with_clim_albedo(station, df, clim)
 
     sel = df.index.month.isin(JJA)
-    df, seb, seb_clim = df[sel], seb[sel], seb_clim[sel]
+    # df is per (half) uur, de gekoppelde smelt per uur: masker per tabel
+    df = df[sel]
+    seb = seb[seb.index.month.isin(JJA)]
+    seb_clim = seb_clim[seb_clim.index.month.isin(JJA)]
     alb_d = alb_d[alb_d.index.month.isin(JJA)]
 
     agg = mc.aggregate(seb, "Y", min_coverage=0)
@@ -135,6 +138,7 @@ def jja_summary(station):
         "albedo": alb_d.groupby(alb_d.index.year).mean().reindex(yrs).values,
         "SWnet": agg["SWnet"].values, "LWnet": agg["LWnet"].values,
         "SHF": agg["SHF"].values, "LHF": agg["LHF"].values,
+        "G": agg["G"].values if "G" in agg else np.nan,
         "melt": (agg["melt_mmwe"] * scale).values,
         "melt_clim_alb": (agg_clim["melt_mmwe"] * scale).values,
         "coverage_jja": cov.clip(upper=1).round(2).values,

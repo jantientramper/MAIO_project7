@@ -358,7 +358,7 @@ def plot_jja_fluxes_by_melt_rank(stations=STATIONS, out="figure6_jja_fluxes_by_m
     fig.suptitle("JJA energy-balance fluxes by year, ranked by melt (G = 0)")
     fig.tight_layout(); fig.savefig(out, dpi=300, bbox_inches="tight"); plt.close(fig)
 
-def plot_annual_jja_melt(stations=STATIONS, out="figure8_annual_jja_melt.png"):
+def plot_annual_jja_melt(stations=STATIONS, out="figure8_annual_jja_melt.png", title=None, ylim=None):
     fig, ax = plt.subplots(figsize=(8, 4))
     all_years = []
     for st in stations:
@@ -383,6 +383,10 @@ def plot_annual_jja_melt(stations=STATIONS, out="figure8_annual_jja_melt.png"):
         ax.tick_params(axis="x", labelrotation=45)
     ax.set_ylabel("Total melt energy [MJ m$^{-2}$]", fontsize=12)
     ax.set_xlabel("Year", fontsize=12)
+    if title:
+        ax.set_title(title, fontsize=11, loc="left", pad=40)
+    if ylim is not None:
+        ax.set_ylim(ylim)
     ax.grid(True, linestyle="--", linewidth=0.7, alpha=0.25)
 
     style_handles = [
@@ -481,6 +485,25 @@ def print_paper_tables(correlations: pd.DataFrame, trends: pd.DataFrame) -> None
     print(f"\nTABLE 4. Trends in SEB components ({PAPER_START_YEAR}–{PAPER_END_YEAR}; W m^-2 y^-1); bold indicates p < 0.10")
     print(display.to_string())
 
+FIG8_METHODS = {
+    "seb_ts": "Modelled Ts with subsurface heat flux G (coupled)",
+    "threshold": "Ts from observed LWU, melt threshold 0.5 K, G = 0 (original)",
+}
+
+
+def plot_figure8_both_methods(out):
+    """Figuur 8 voor beide smeltmethoden, elk in een eigen bestand."""
+    original = mc.MELT_METHOD
+    try:
+        for method, title in FIG8_METHODS.items():
+            mc.MELT_METHOD = method
+            # zelfde y-as voor beide versies, zodat ze direct te vergelijken zijn
+            plot_annual_jja_melt(out=Path(out) / f"figure8_annual_jja_melt_{method}.png", title=title,
+                                 ylim=(0, 2400))
+    finally:
+        mc.MELT_METHOD = original
+
+
 def main():
     parser = argparse.ArgumentParser(description=__doc__)
     parser.add_argument("--out", default=str(mc.ROOT / "output" / "paper_reproduction"))
@@ -521,6 +544,7 @@ def main():
                            out=out / "figure5_hourly_case_study.png")
     plot_jja_fluxes_by_melt_rank(out=out / "figure6_jja_fluxes_by_melt_rank.png")
     plot_annual_jja_melt(out=out / "figure8_annual_jja_melt.png")
+    plot_figure8_both_methods(out)
     print(f"Saved reproduction outputs to {out}")
     print("Note: G is fixed at zero. Figure/table numbers are intended as working analogues; check definitions against the paper.")
 
