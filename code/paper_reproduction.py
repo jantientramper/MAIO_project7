@@ -394,8 +394,8 @@ def plot_annual_jja_melt(stations=STATIONS, out="figure8_annual_jja_melt.png"):
 
     leg1 = ax.legend(
         handles=style_handles,
-        loc="upper left",
-        frameon=True)
+        loc="lower left", bbox_to_anchor=(0, 1.01),
+        frameon=False)
 
     ax.add_artist(leg1)
 
@@ -410,8 +410,8 @@ def plot_annual_jja_melt(stations=STATIONS, out="figure8_annual_jja_melt.png"):
 
     leg2 = ax.legend(
         handles=station_handles,
-        loc="upper right", ncol=2,
-        frameon=True,
+        loc="lower right", bbox_to_anchor=(1, 1.01), ncol=2,
+        frameon=False,
         labelcolor="black",
         handletextpad=0.6)
 

@@ -62,6 +62,7 @@ RHO_ICE = 910.0         # dichtheid ijs voor omrekenen gemeten verlaging (kg m-3
 
 # Instellingen SEB
 T_MELT_TOL = 0.5        # Ts binnen 0.5 K van smeltpunt -> smeltend oppervlak
+GROUND_FLUX = 0.0       # warmtestroom uit het ijs naar het oppervlak (W/m2, + = naar oppervlak); 0 = verwaarloosd
 MIN_COVERAGE = 0.8      # minimale datadekking per periode, anders NaN
 Z_DEFAULT = 3.0         # meethoogte (m) als die niet bekend is
 LWU_MELT = SIGMA * T0**4  # uitgaande langgolvige straling van smeltend oppervlak
@@ -218,7 +219,7 @@ def seb_melt(swd, swu, lwd, lwu, shf, lhf, t_s):
     lwu_eff = np.where(melting, LWU_MELT, lwu)
     swnet = swd.clip(lower=0) - swu.clip(lower=0)
     lwnet = lwd - lwu_eff
-    q = swnet + lwnet + shf + lhf
+    q = swnet + lwnet + shf + lhf + GROUND_FLUX
     m = np.where(melting, np.maximum(q, 0), 0.0)
     m = np.where(np.isnan(q), np.nan, m)
     return pd.DataFrame({"SWnet": swnet, "LWnet": lwnet, "SHF": shf, "LHF": lhf,

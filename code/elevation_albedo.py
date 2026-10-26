@@ -80,6 +80,13 @@ def climatological_albedo(alb_daily):
     return clim.rolling(ALB_SMOOTH_DAYS, center=True, min_periods=5).mean()
 
 
+def albedo_spread(alb_daily, q=(0.25, 0.75)):
+    """Spreiding tussen jaren per dag van het jaar (percentielen), net zo gladgestreken."""
+    g = alb_daily.groupby(alb_daily.index.dayofyear)
+    return tuple(g.quantile(x).reindex(range(1, 367))
+                 .rolling(ALB_SMOOTH_DAYS, center=True, min_periods=5).mean() for x in q)
+
+
 def melt_with_clim_albedo(station, df, clim):
     df2 = df.copy()
     a = clim.reindex(df2.index.dayofyear).values
@@ -99,6 +106,7 @@ def jja_summary(station):
     clim = climatological_albedo(alb_d)
     yrs_alb = alb_d.dropna().index.year
     clim.attrs["period"] = f"{yrs_alb.min()}–{yrs_alb.max()}"   # jaren in de klimatologie
+    clim.attrs["p25"], clim.attrs["p75"] = albedo_spread(alb_d)  # variatie tussen jaren
     seb_clim = melt_with_clim_albedo(station, df, clim)
 
     sel = df.index.month.isin(JJA)
@@ -373,12 +381,16 @@ def plot_albedo_experiment(years, out):
 
 def plot_albedo_climatology(clims, years, out):
     fig, (ax1, ax2) = plt.subplots(1, 2, figsize=(12, 4.5))
-    for st, c in clims.items():
-        c = c.loc[120:270]
-        ax1.plot(c.index, c.values, lw=2, color=mc.COLORS[st], label=f"{st} ({c.attrs.get('period', '?')})")
+    for st, c_full in clims.items():
+        c = c_full.loc[120:270]
+        if "p25" in c_full.attrs:
+            lo, hi = c_full.attrs["p25"].loc[120:270], c_full.attrs["p75"].loc[120:270]
+            ax1.fill_between(c.index, lo.values, hi.values, color=mc.COLORS[st], alpha=0.15, lw=0)
+        ax1.plot(c.index, c.values, lw=2, color=mc.COLORS[st], label=f"{st} ({c_full.attrs.get('period', '?')})")
     ax1.set_xlabel("Day of year")
     ax1.set_ylabel("Albedo")
-    ax1.set_title("Climatological albedo (median over all years, 15-day smoothed)")
+    ax1.set_title("Climatological albedo (median over all years, 15-day smoothed)\n"
+                  "band: 25th–75th percentile between years", fontsize=10)
     ax1.legend(frameon=False, ncol=2, loc="upper center", bbox_to_anchor=(0.5, -0.14))
     mc.style(ax1)
     for st in mc.AWS_STATIONS:

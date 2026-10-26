@@ -102,7 +102,7 @@ Met maar vier stations zijn deze gradiënten onzeker. Hoofdstuk 3 geeft de betro
 
 - **De smeltgradiënt is stabiel:** in elk jaar ligt hij tussen −210 en −310 mm w.e. per 100 m.
 - **Voelbare warmte past niet bij een rechte lijn:** AWS5 springt eruit met ~95 W/m², tegen ~22 W/m² bij AWS6.
-- **Het albedo neemt niet gewoon toe met de hoogte:** in augustus is AWS6 het donkerst van alle stations (albedo ~0.45, tegen ~0.52 bij AWS5). Dat past bij de bekende donkere zone van de K-transect ([figuur](output/elevation/albedo_climatology.png)).
+- **Het albedo neemt niet gewoon toe met de hoogte:** in augustus is AWS6 het donkerst van alle stations (albedo ~0.45, tegen ~0.52 bij AWS5). Dat past bij de bekende donkere zone van de K-transect ([figuur](output/elevation/albedo_climatology.png); de banden geven het 25e–75e percentiel tussen de jaren). De variatie tussen jaren is het grootst bij AWS6 en AWS9 in juli en augustus: daar hangt het albedo af van wanneer de sneeuw verdwijnt.
 
 **Albedo-experiment** ([figuur](output/elevation/albedo_contribution.png)):
 
@@ -139,6 +139,7 @@ Over alleen de jaren vóór de wissel is er geen trend in temperatuur of voelbar
    | z0m ×2 en ÷2 | onzekerheid ruwheid |
    | meethoogte oud stationstype 2.5 en 4 m (standaard 3 m) | echte hoogte onbekend |
    | smeltdrempel 0.25 en 1 K (standaard 0.5 K) | modelkeuze |
+   | warmtestroom in het ijs (G) +10 en −10 W/m² (standaard 0) | niet gemodelleerd; orde van grootte uit fig. 4 van het paper (aanname) |
 
    De totale foutmarge is de wortel van de kwadratensom van de afzonderlijke effecten, in de aanname dat de fouten onafhankelijk zijn.
 2. **Validatie met betrouwbaarheidsintervallen.** Voor berekend tegen gemeten smelt per maand: r met 95%-interval (Fisher-z), en de gemiddelde afwijking met 95%-interval (t-verdeling).
@@ -151,14 +152,15 @@ Over alleen de jaren vóór de wissel is er geen trend in temperatuur of voelbar
 
 | Station | Gem. JJA-smelt | Foutmarge totaal | Zonder smeltdrempel |
 |---|---|---|---|
-| AWS5 | 3559 mm w.e. | ±23% | ±13% |
-| AWS6 | 1697 mm w.e. | ±25% | ±8% |
-| AWS9 | 951 mm w.e. | ±24% | ±8% |
-| AWS10 | 396 mm w.e. | ±27% | ±11% |
+| AWS5 | 3559 mm w.e. | ±23% | ±14% |
+| AWS6 | 1697 mm w.e. | ±25% | ±10% |
+| AWS9 | 951 mm w.e. | ±25% | ±11% |
+| AWS10 | 396 mm w.e. | ±29% | ±16% |
 
 - **De smeltdrempel is overal de grootste foutbron** (±19–24%). Of een tijdstap als smeltend telt, hangt af van de oppervlaktetemperatuur uit LWU binnen een paar tienden van een graad. Het paper heeft dit probleem niet, omdat het de oppervlaktetemperatuur met een model berekent.
 - **Bij AWS5 komt de ruwheid op de tweede plaats:** +13% bij z0m ×2 en −6% bij z0m ÷2. Daarna volgt de temperatuur (±6%).
 - **Hoger op de ijskap** wegen de straling en de temperatuur het zwaarst (elk ±4–6%). Ruwheid, wind en meethoogte doen daar nauwelijks iets (<1%).
+- **De warmtestroom in het ijs (G ±10 W/m²)** geeft ±4% bij AWS5, ±6% bij AWS6, ±8% bij AWS9 en ±12% bij AWS10. Het effect in mm w.e. is ongeveer even groot als bij de andere bronnen, maar hoe minder er smelt, hoe zwaarder het relatief weegt. Hoog op de ijskap is G daarom na de smeltdrempel de grootste foutbron. Omdat het model G weglaat, telt die mee in de kolom "zonder smeltdrempel".
 
 **Validatie met betrouwbaarheidsintervallen** (per maand, maanden met meer dan 50 mm):
 
@@ -241,7 +243,7 @@ De punten staan per groep, binnen elke groep van grootste naar kleinste invloed 
    - De smelt bij AWS5 verandert +13% / −6% bij een factor 2 in z0m (hoofdstuk 3).
 2. **De meethoogte staat vast op 3 m voor het oude stationstype** (`Z_DEFAULT`). De werkelijke hoogtes staan in de metadata-xlsx van PANGAEA, maar worden niet gebruikt. Wind en temperatuur worden ook op verschillende hoogtes gemeten.
 3. **Geen warmtestroom in het ijs, en een harde smeltdrempel.**
-   - Alle energie bij een oppervlak op 0 °C gaat naar smelt. In het voorjaar moet eerst het koude ijs opwarmen, dus de smelt wordt dan overschat.
+   - Alle energie bij een oppervlak op 0 °C gaat naar smelt. In het voorjaar moet eerst het koude ijs opwarmen, dus de smelt wordt dan overschat. G staat als constante `GROUND_FLUX` (standaard 0) in de code. Een vaste ±10 W/m² verandert de zomersmelt met ±4% (AWS5) tot ±12% (AWS10), zie hoofdstuk 3.
    - Of er smelt is, hangt af van de oppervlaktetemperatuur binnen 0.5 K van het smeltpunt (`T_MELT_TOL`). Die temperatuur komt uit LWU met emissiviteit 1. Een meetfout van enkele W/m² in LWU kan daardoor het verschil maken tussen wel en geen smelt. Bij SHR vallen veel dagen net onder de drempel. Dit is de grootste foutbron: een drempel van 0.25 of 1 K verandert de zomersmelt met ±19–24% (hoofdstuk 3).
 4. **SHR heeft geen eigen stralingsmeting** (`melt_flux`). SWD, SWU en LWD komen van AWS5, en het albedo van AWS5 past waarschijnlijk niet bij SHR. Uitspraken over hoeveel SHR smelt zijn daardoor zwak. Data van KAN_L (PROMICE) zou dit oplossen.
 5. **De gemeten smelt is alleen bruikbaar bij kaal ijs.** De akoestische hoogtemeter meet ook sneeuwval, maar alles wordt omgerekend met ijsdichtheid (`RHO_ICE`). Sneeuwval telt dan als negatieve smelt. Daarom is de validatie bij AWS9 en AWS10 niet bruikbaar.

@@ -46,6 +46,7 @@ SENSITIVITY = {
     "z0m ×2 / ÷2": "onzekerheid ruwheid (factor 2)",
     "meethoogte 2.5 / 4 m": "onbekende sensorhoogte type 0 (standaard 3 m)",
     "smeltdrempel 0.25 / 1 K": "drempel oppervlaktetemperatuur (standaard 0.5 K)",
+    "G +10 / −10 W/m²": "warmtestroom in het ijs, standaard 0 (aanname; orde van grootte uit paper fig. 4)",
 }
 
 # Tabel 3 van Kuipers Munneke et al. (2018): r met JJA-smelt, en R² albedo (fig. 7)
@@ -96,8 +97,8 @@ def jja_melt(ts):
     return g.mean() * JJA_HOURS, cov
 
 
-def run(station, df, z0_factor=1.0, z_default=None, t_tol=None):
-    orig = (mc.z0m_series, mc.Z_DEFAULT, mc.T_MELT_TOL)
+def run(station, df, z0_factor=1.0, z_default=None, t_tol=None, g_flux=None):
+    orig = (mc.z0m_series, mc.Z_DEFAULT, mc.T_MELT_TOL, mc.GROUND_FLUX)
     try:
         if z0_factor != 1.0:
             mc.z0m_series = lambda st, idx: orig[0](st, idx) * z0_factor
@@ -105,9 +106,11 @@ def run(station, df, z0_factor=1.0, z_default=None, t_tol=None):
             mc.Z_DEFAULT = z_default
         if t_tol is not None:
             mc.T_MELT_TOL = t_tol
+        if g_flux is not None:
+            mc.GROUND_FLUX = g_flux
         return jja_melt(mc.melt_aws(station, df))[0]
     finally:
-        mc.z0m_series, mc.Z_DEFAULT, mc.T_MELT_TOL = orig
+        mc.z0m_series, mc.Z_DEFAULT, mc.T_MELT_TOL, mc.GROUND_FLUX = orig
 
 
 def sensitivity(station):
@@ -131,6 +134,7 @@ def sensitivity(station):
         "z0m ×2 / ÷2": (run(station, df, z0_factor=2.0), run(station, df, z0_factor=0.5)),
         "meethoogte 2.5 / 4 m": (run(station, df, z_default=2.5), run(station, df, z_default=4.0)),
         "smeltdrempel 0.25 / 1 K": (run(station, df, t_tol=0.25), run(station, df, t_tol=1.0)),
+        "G +10 / −10 W/m²": (run(station, df, g_flux=10.0), run(station, df, g_flux=-10.0)),
     }
     rows = []
     for name, (up, down) in runs.items():
@@ -223,7 +227,7 @@ def albedo_share_ci(years, seed=1):
 
 def plot_sensitivity(sens, summary, out):
     params = list(SENSITIVITY)
-    fig, axes = plt.subplots(1, len(mc.AWS_STATIONS), figsize=(13, 4.2), sharey=True)
+    fig, axes = plt.subplots(1, len(mc.AWS_STATIONS), figsize=(13, 4.7), sharey=True)
     for ax, st in zip(axes, mc.AWS_STATIONS):
         s = sens[sens["station"] == st].set_index("parameter").reindex(params)
         base = summary.loc[st, "jja_smelt_mm"]
@@ -232,7 +236,8 @@ def plot_sensitivity(sens, summary, out):
         ax.barh(y - 0.2, 100 * s["delta_laag_mm"] / base, height=0.38, color="#a8a7a2", label="second value")
         ax.axvline(0, color="#52514e", lw=0.8)
         ax.set_yticks(y, ["T +0.4 / −0.4 °C", "wind +0.3 / −0.3 m/s", "SW +5 / −5%", "LWD +5 / −5 W/m²",
-                          "z0m ×2 / ÷2", "sensor height 2.5 / 4 m", "melt threshold 0.25 / 1 K"])
+                          "z0m ×2 / ÷2", "sensor height 2.5 / 4 m", "melt threshold 0.25 / 1 K",
+                          "ground heat flux +10 / −10 W/m²"])
         ax.invert_yaxis()
         ax.set_title(f"{st}  (±{summary.loc[st, 'foutmarge_pct']:.0f}% total)", loc="left", fontsize=10)
         ax.set_xlabel("change in JJA melt (%)")
