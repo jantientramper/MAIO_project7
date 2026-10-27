@@ -314,7 +314,7 @@ def plot_correlation_table(cor, out, stations=tuple(mc.AWS_STATIONS)):
     from matplotlib.patches import Rectangle
     vars_ = ["SWnet", "LWnet", "SHF", "LHF", "albedo"]
     labels = [r"SW$_\mathrm{net}$", r"LW$_\mathrm{net}$", "SHF", "LHF", "Albedo"]
-    c = cor[cor["subset"] == "alleen type 0"].set_index(["station", "variabele"])
+    c = cor[cor["subset"] == "alle jaren"].set_index(["station", "variabele"])
     fmt = lambda x: f"{x:.2f}".replace("-", "−")
     pad, half = 0.06, 0.44                  # celrand en halve breedte van de balkruimte
     fig, ax = plt.subplots(figsize=(8, 4))

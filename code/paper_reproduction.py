@@ -383,43 +383,50 @@ def plot_annual_jja_melt(stations=STATIONS, out="figure8_annual_jja_melt.png", t
         ax.tick_params(axis="x", labelrotation=45)
     ax.set_ylabel("Total melt energy (MJ m$^{-2}$)", fontsize=12)
     ax.set_xlabel("Year", fontsize=12)
-    if title:
-        ax.set_title(title, fontsize=11, loc="left", pad=40)
+        # Geen titel
+    ax.set_title("")
+
     if ylim is not None:
         ax.set_ylim(ylim)
+
     ax.grid(True, linestyle="--", linewidth=0.7, alpha=0.25)
 
+        # Linksboven: lijnstijlen
     style_handles = [
         Line2D([0], [0], color="black", lw=2.5, ls="-",
-            marker="o", markersize=7, label="Annual"),
+               marker="o", markersize=7, label="Annual"),
         Line2D([0], [0], color="black", lw=2.5, ls="--",
-            marker="o", markerfacecolor="white",
-            markeredgecolor="black", markersize=7, label="JJA"),]
+               marker="o", markerfacecolor="white",
+               markeredgecolor="black", markersize=7, label="JJA"),
+    ]
 
     leg1 = ax.legend(
         handles=style_handles,
-        loc="lower left", bbox_to_anchor=(0, 1.01),
-        frameon=False)
-
+        loc="upper left",
+        frameon=True,
+        framealpha=0.9,
+        edgecolor="none",
+        fontsize=9
+    )
     ax.add_artist(leg1)
 
-    station_handles = [Line2D(
-            [0], [0],
-            marker="o",
-            linestyle="none",
-            color=COLORS[st],
-            markersize=8,
-            label=st)
-        for st in stations]
+    # Rechtsboven: stationskleuren in twee kolommen
+    station_handles = [
+        Line2D([0], [0], marker="o", linestyle="none",
+               color=COLORS[st], markersize=8, label=st)
+        for st in stations
+    ]
 
-    leg2 = ax.legend(
+    ax.legend(
         handles=station_handles,
-        loc="lower right", bbox_to_anchor=(1, 1.01), ncol=2,
-        frameon=False,
-        labelcolor="black",
-        handletextpad=0.6)
-
-    ax.add_artist(leg2)
+        loc="upper right",
+        ncol=2,
+        frameon=True,
+        framealpha=0.9,
+        edgecolor="none",
+        fontsize=9,
+        columnspacing=1.0
+    )
 
     fig.tight_layout()
     fig.savefig(out, dpi=600, bbox_inches="tight")
@@ -499,7 +506,7 @@ def plot_figure8_both_methods(out):
             mc.MELT_METHOD = method
             # zelfde y-as voor beide versies, zodat ze direct te vergelijken zijn
             plot_annual_jja_melt(out=Path(out) / f"figure8_annual_jja_melt_{method}.png", title=title,
-                                 ylim=(0, 2400))
+                                 ylim=(0, 2100))
     finally:
         mc.MELT_METHOD = original
 

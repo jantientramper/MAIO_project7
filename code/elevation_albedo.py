@@ -304,7 +304,7 @@ def plot_gradients(clim_full, clim_common, grads, out):
 
     lines = [_gradient_series(ax, clim_full, v, SERIES_COLORS[v], lab(v)) for v in ["SWnet", "LWnet", "SHF", "LHF"]]    
     ax.axvline(0, color="#a8a7a2", lw=0.8, zorder=1)
-    ax.set_xlabel("Energy flux, JJA mean (W/m²)")
+    ax.set_xlabel("Energy flux JJA mean (W/m²)")
     ax.set_ylabel("Elevation (m)")
     style(ax)
     top = ax.twiny()
@@ -330,10 +330,12 @@ def plot_gradients(clim_full, clim_common, grads, out):
     top.tick_params(axis="x", colors=melt_color)
     top.spines["top"].set_color(melt_color)
 
-    series_vars = ["SWnet", "LWnet", "SHF", "LHF", "melt"]
+    series_vars = ["LWnet", "LHF", "SHF", "melt", "SWnet"]
     short = {"SWnet": "SWnet", "LWnet": "LWnet", "SHF": "SHF", "LHF": "LHF", "melt": "Melt"}
     series_names = [f"{short[v]} (R²={grads.loc[v].r2:.2f})" for v in series_vars]
-    leg_series = top.legend(handles=lines, labels=series_names, frameon=True, framealpha=0.9,
+    line_by_var = dict(zip(["SWnet", "LWnet", "SHF", "LHF", "melt"], lines))
+    ordered_lines = [line_by_var[v] for v in series_vars]
+    leg_series = top.legend(handles=ordered_lines, labels=series_names, frameon=True, framealpha=0.9,
                             edgecolor="none", fontsize=9, loc="upper right")
     top.add_artist(leg_series)
     top.legend(handles=_station_legend(clim_full), frameon=True, framealpha=0.9, edgecolor="none",
