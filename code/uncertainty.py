@@ -32,6 +32,7 @@ from scipy import stats
 
 import melt_comparison as mc
 import elevation_albedo as ea
+import surface_temperature as stm
 
 JJA = [6, 7, 8]
 JJA_HOURS = 92 * 24
@@ -46,7 +47,7 @@ SENSITIVITY = {
     "z0m ×2 / ÷2": "onzekerheid ruwheid (factor 2)",
     "meethoogte 2.5 / 4 m": "onbekende sensorhoogte type 0 (standaard 3 m)",
     "smeltdrempel 0.25 / 1 K": "drempel oppervlaktetemperatuur (standaard 0.5 K)",
-    "G +10 / −10 W/m²": "warmtestroom in het ijs, standaard 0 (aanname; orde van grootte uit paper fig. 4)",
+    "G on / off": "ground heat flux: full model (coupled subsurface model) vs. G = 0",
     "datadekking 70 / 90%": "minimale dekking voor een zomer om mee te tellen (standaard 80%)",
 }
 
@@ -102,8 +103,8 @@ def jja_melt(ts):
     return g.mean() * JJA_HOURS, cov
 
 
-def run(station, df, z0_factor=1.0, z_default=None, t_tol=None, g_flux=None):
-    orig = (mc.z0m_series, mc.Z_DEFAULT, mc.T_MELT_TOL, mc.GROUND_FLUX)
+def run(station, df, z0_factor=1.0, z_default=None, t_tol=None):
+    orig = (mc.z0m_series, mc.Z_DEFAULT, mc.T_MELT_TOL)
     try:
         if z0_factor != 1.0:
             mc.z0m_series = lambda st, idx: orig[0](st, idx) * z0_factor
@@ -111,11 +112,25 @@ def run(station, df, z0_factor=1.0, z_default=None, t_tol=None, g_flux=None):
             mc.Z_DEFAULT = z_default
         if t_tol is not None:
             mc.T_MELT_TOL = t_tol
-        if g_flux is not None:
-            mc.GROUND_FLUX = g_flux
         return jja_melt(mc.melt_aws(station, df))[0]
     finally:
-        mc.z0m_series, mc.Z_DEFAULT, mc.T_MELT_TOL, mc.GROUND_FLUX = orig
+        mc.z0m_series, mc.Z_DEFAULT, mc.T_MELT_TOL = orig
+
+
+def run_coupled(station, df, ground=True):
+    """JJA-smelt met het gekoppelde Ts/G-model (ook als de rest met de drempelmethode draait).
+
+    Met ground=False wordt het ondergrondmodel niet gekoppeld, dus G = 0.
+    """
+    orig = (mc.MELT_METHOD, stm.N_G_ITER)
+    try:
+        mc.MELT_METHOD = "seb_ts"
+        if not ground:
+            stm.N_G_ITER = 0
+        # volledig model uit de cache; zonder G met df meegeven, anders komt de cache terug
+        return jja_melt(mc.melt_aws(station, None if ground else df))[0]
+    finally:
+        mc.MELT_METHOD, stm.N_G_ITER = orig
 
 
 def sensitivity(station):
@@ -139,8 +154,10 @@ def sensitivity(station):
         "z0m ×2 / ÷2": (run(station, df, z0_factor=2.0), run(station, df, z0_factor=0.5)),
         "meethoogte 2.5 / 4 m": (run(station, df, z_default=2.5), run(station, df, z_default=4.0)),
         "smeltdrempel 0.25 / 1 K": (run(station, df, t_tol=0.25), run(station, df, t_tol=1.0)),
-        "G +10 / −10 W/m²": (run(station, df, g_flux=10.0), run(station, df, g_flux=-10.0)),
     }
+    # G: verschil tussen gekoppeld model met en zonder G, opgeteld bij de basis
+    full = run_coupled(station, df)
+    runs["G on / off"] = (base_all, base_all + run_coupled(station, df, ground=False) - full)
     rows = []
     for name, (up, down) in runs.items():
         up, down = up.reindex(years), down.reindex(years)
@@ -299,7 +316,7 @@ def plot_sensitivity(sens, summary, out):
         ax.axvline(0, color="#52514e", lw=0.8)
         ax.set_yticks(y, ["T +0.4 / −0.4 °C", "wind +0.3 / −0.3 m/s", "SW +5 / −5%", "LWD +5 / −5 W/m²",
                           "z0m ×2 / ÷2", "sensor height 2.5 / 4 m", "melt threshold 0.25 / 1 K",
-                          "ground heat flux +10 / −10 W/m²", "data coverage ≥70 / ≥90%"])
+                          "ground heat flux on / off", "data coverage ≥70 / ≥90%"])
         ax.invert_yaxis()
         ax.set_title(f"{st}  (±{summary.loc[st, 'foutmarge_pct']:.0f}% total)", loc="left", fontsize=10)
         ax.set_xlabel("change in JJA melt (%)")
@@ -307,7 +324,6 @@ def plot_sensitivity(sens, summary, out):
         ax.grid(axis="x", color="#e5e4e0", lw=0.8)
     handles, labels = axes[0].get_legend_handles_labels()
     fig.legend(handles, labels, frameon=False, fontsize=9, ncol=2, loc="lower center")
-    fig.suptitle("Sensitivity of summer melt to input errors and model choices", x=0.01, ha="left")
     fig.tight_layout(rect=(0, 0.06, 1, 1))
     fig.savefig(out, dpi=150)
     plt.close(fig)
