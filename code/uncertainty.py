@@ -28,6 +28,7 @@ from pathlib import Path
 import numpy as np
 import pandas as pd
 import matplotlib.pyplot as plt
+import matplotlib.transforms as mtransforms
 from scipy import stats
 
 import melt_comparison as mc
@@ -314,17 +315,35 @@ def plot_sensitivity(sens, summary, out):
         ax.barh(y + 0.2, 100 * s["delta_hoog_mm"] / base, height=0.38, color=mc.COLORS[st], label="first value")
         ax.barh(y - 0.2, 100 * s["delta_laag_mm"] / base, height=0.38, color="#a8a7a2", label="second value")
         ax.axvline(0, color="#52514e", lw=0.8)
-        ax.set_yticks(y, ["T +0.4 / −0.4 °C", "wind +0.3 / −0.3 m/s", "SW +5 / −5%", "LWD +5 / −5 W/m²",
-                          "z0m ×2 / ÷2", "sensor height 2.5 / 4 m", "melt threshold 0.25 / 1 K",
-                          "ground heat flux on / off", "data coverage ≥70 / ≥90%"])
+        ax.set_yticks(y, [""] * len(y))
         ax.invert_yaxis()
-        ax.set_title(f"{st}  (±{summary.loc[st, 'foutmarge_pct']:.0f}% total)", loc="left", fontsize=10)
-        ax.set_xlabel("change in JJA melt (%)")
+        ax.set_title(st, fontsize=13)
+        ax.set_xlim(-30, 30)       # zelfde schaal voor alle stations
+        ax.set_xticks([-20, 0, 20])
+        ax.set_xticks([-10, 10], minor=True)
         mc.style(ax)
-        ax.grid(axis="x", color="#e5e4e0", lw=0.8)
-    handles, labels = axes[0].get_legend_handles_labels()
-    fig.legend(handles, labels, frameon=False, fontsize=9, ncol=2, loc="lower center")
-    fig.tight_layout(rect=(0, 0.06, 1, 1))
+        ax.tick_params(labelsize=11)
+        ax.grid(axis="x", which="both", color="#e5e4e0", lw=0.8)
+    # labels als tabel links van de eerste as: naam | eerste waarde / tweede waarde, steeds als
+    # verandering t.o.v. de standaardwaarde (meethoogte 3 m, smeltdrempel -0.5 degC, dekking 80%);
+    # de eerste waarde in de balkkleur zodat duidelijk is welke balk erbij hoort
+    labels = [("T (°C)", "+0.4", "−0.4"), ("wind (m/s)", "+0.3", "−0.3"), ("SW (%)", "+5", "−5"),
+              ("LWD (W/m²)", "+5", "−5"), ("z0m", "×2", "÷2"), ("sensor height (m)", "−0.5", "+1"),
+              ("melt threshold (°C)", "+0.25", "−0.5"), ("ground heat flux", "on", "off"),
+              ("data coverage (%)", "−10", "+10")]
+    ax0 = axes[0]
+    trans = ax0.get_yaxis_transform()
+    for yi, (name, first, second) in zip(y, labels):
+        for x_pt, txt, ha, col in [(-250, name, "left", "#2b2a27"),
+                                   (-70, first, "right", mc.COLORS[mc.AWS_STATIONS[0]]),
+                                   (-61, "/", "center", "#2b2a27"),
+                                   (-52, second, "left", "#2b2a27")]:
+            off = mtransforms.ScaledTranslation(x_pt / 72, 0, fig.dpi_scale_trans)
+            ax0.text(0, yi, txt, transform=trans + off, ha=ha, va="center", fontsize=12, color=col)
+    fig.tight_layout(rect=(0, 0.05, 1, 1))
+    # één x-label, gecentreerd onder de vier panelen (niet onder de hele figuur)
+    left, right = axes[0].get_position().x0, axes[-1].get_position().x1
+    fig.text((left + right) / 2, 0.015, "change in JJA melt (%)", ha="center", fontsize=12)
     fig.savefig(out, dpi=150)
     plt.close(fig)
 
