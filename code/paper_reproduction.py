@@ -381,7 +381,7 @@ def plot_annual_jja_melt(stations=STATIONS, out="figure8_annual_jja_melt.png", t
         ax.set_xticks(np.arange(first_year, last_year + 1, 1))
         ax.set_xlim(first_year + 0.75, last_year + 0.25)
         ax.tick_params(axis="x", labelrotation=45)
-    ax.set_ylabel("Total melt energy [MJ m$^{-2}$]", fontsize=12)
+    ax.set_ylabel("Total melt energy (MJ m$^{-2}$)", fontsize=12)
     ax.set_xlabel("Year", fontsize=12)
     if title:
         ax.set_title(title, fontsize=11, loc="left", pad=40)

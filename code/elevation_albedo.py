@@ -246,7 +246,13 @@ def style(ax):
 # Vorm per station en kleur per serie voor de hoogtefiguur
 STATION_MARKERS = {"AWS5": "o", "AWS6": "s", "AWS9": "^", "AWS10": "*"}
 MARKER_SIZE = {"*": 170}   # ster oogt klein, daarom groter
-SERIES_COLORS = {"SWnet": "#2a78d6", "LWnet": "#eb6834", "SHF": "#1baf7a", "melt": "#6250d6"}
+SERIES_COLORS = {
+    "SWnet": "#7FD1C7",  # licht turquoise
+    "LWnet": "#1FA3A8",  # teal
+    "SHF":   "#2C7FA0",  # staalblauw-teal
+    "LHF":   "#0C3C5C",  # donker petrol (zelfde als in plot_partition)
+    "melt":  "#3C1B72",  # donker petrol
+}
 NEUTRAL = "#52514e"
 
 
@@ -265,7 +271,7 @@ def _gradient_series(ax, clim, v, color, label):
 def _station_legend(clim):
     from matplotlib.lines import Line2D
     return [Line2D([], [], ls="", marker=STATION_MARKERS[st], ms=13 if STATION_MARKERS[st] == "*" else 9,
-                   color=NEUTRAL, mec="white", label=f"{st} ({int(clim.loc[st, 'elevation'])} m)")
+                   color=NEUTRAL, mec="white", label=st)
             for st in clim.index]
 
 
@@ -290,13 +296,13 @@ def plot_gradients(clim_full, clim_common, grads, out):
     plt.close(fig)
 
     # --- figuur 2: energiebalanstermen (onderste x-as) en smelt (bovenste x-as) ---
-    fig, ax = plt.subplots(figsize=(9, 7.2))
+    fig, ax = plt.subplots(figsize=(7, 4))
 
     def lab(v):
         g = grads.loc[v]
-        return f"{VARS[v][0]}: {g.gradient_per_100m:+.3g} {VARS[v][1]} per 100 m (R²={g.r2:.2f})"
+        return f"{VARS[v][0]} (R² = {g.r2:.2f})"
 
-    lines = [_gradient_series(ax, clim_full, v, SERIES_COLORS[v], lab(v)) for v in ["SWnet", "LWnet", "SHF"]]
+    lines = [_gradient_series(ax, clim_full, v, SERIES_COLORS[v], lab(v)) for v in ["SWnet", "LWnet", "SHF", "LHF"]]    
     ax.axvline(0, color="#a8a7a2", lw=0.8, zorder=1)
     ax.set_xlabel("Energy flux, JJA mean (W/m²)")
     ax.set_ylabel("Elevation (m)")
@@ -314,24 +320,25 @@ def plot_gradients(clim_full, clim_common, grads, out):
     m_fit = fit_at("melt")                                      # mm w.e. op de bovenste as
     b = (w_target[1] - w_target[0]) / (m_fit[1] - m_fit[0])     # W/m² per mm w.e.
     a = w_target[0] - b * m_fit[0]
+    ax.set_xlim(right=150)          # bovenkant onderste as vast op 130 W/m²
     x0, x1 = ax.get_xlim()
     top.set_xlim((x0 - a) / b, (x1 - a) / b)
     top.set_xticks([t for t in top.get_xticks() if 0 <= t <= top.get_xlim()[1]])   # geen negatieve smelt
     # bovenste as in de kleur van de smeltlijn, zodat duidelijk is welke serie erbij hoort
-    melt_color = melt_line.get_color()
+    melt_color = "#1D0E47"
     top.set_xlabel("JJA melt (mm w.e.)", color=melt_color)
     top.tick_params(axis="x", colors=melt_color)
     top.spines["top"].set_color(melt_color)
-    ax.set_title("Surface energy balance and melt vs elevation", fontsize=11, pad=12)
 
-    # legenda's: kleur = serie, vorm = station
-    fig.legend(handles=_station_legend(clim_full), frameon=False, fontsize=9, loc="lower left",
-               bbox_to_anchor=(0.01, 0.175), ncol=4, title="Station (marker)", title_fontsize=9)
-    fig.legend(handles=lines, frameon=False, fontsize=9, loc="lower left",
-               bbox_to_anchor=(0.01, 0.03), ncol=1, title="Series (colour)", title_fontsize=9)
-    fig.text(0.99, 0.015, "Points: JJA mean over all years per station.  Dashed: linear fit.",
-             fontsize=8, color="#52514e", ha="right")
-    fig.tight_layout(rect=(0, 0.24, 1, 1))
+    series_vars = ["SWnet", "LWnet", "SHF", "LHF", "melt"]
+    short = {"SWnet": "SWnet", "LWnet": "LWnet", "SHF": "SHF", "LHF": "LHF", "melt": "Melt"}
+    series_names = [f"{short[v]} (R²={grads.loc[v].r2:.2f})" for v in series_vars]
+    leg_series = top.legend(handles=lines, labels=series_names, frameon=True, framealpha=0.9,
+                            edgecolor="none", fontsize=9, loc="upper right")
+    top.add_artist(leg_series)
+    top.legend(handles=_station_legend(clim_full), frameon=True, framealpha=0.9, edgecolor="none",
+               fontsize=9, loc="lower left", bbox_to_anchor=(0.32, 0.01), ncol=1)
+    fig.tight_layout()
     fig.savefig(out, dpi=600)
     plt.close(fig)
 
@@ -339,10 +346,11 @@ def plot_gradients(clim_full, clim_common, grads, out):
 def plot_partition(clim_full, out):
     comp = ["SWnet", "LWnet", "SHF", "LHF"]
     ccol = {
-    "SWnet": "#12A1CD",
-    "LWnet": "#EABE2E",
-    "SHF":   "#50B57F",
-    "LHF":   "#BB69DE"}
+        "SWnet": "#7FD1C7",  # licht turquoise
+        "LWnet": "#1FA3A8",  # teal
+        "SHF":   "#2A83A6",  # staalblauw-teal
+        "LHF":   "#0C3C5C",  # donker petrol
+    }
     # ccol = {"SWnet": "#278BB6", "LWnet": "#D7CF31", "SHF": "#33B422", "LHF": "#CE48A8"}
     d = clim_full.sort_values("elevation")
     fig, ax = plt.subplots(figsize=(7, 4))
@@ -352,7 +360,7 @@ def plot_partition(clim_full, out):
         ax.bar(xs + (i - 1.5) * w, d[c], width=w * 0.92, color=ccol[c], label=c)
     ax.axhline(0, color="#52514e", lw=0.8)
     ax.set_xticks(xs, [rf"$\mathbf{{{s}}}$" + f"\n{int(e)} m"for s, e in zip(d.index, d["elevation"])], fontsize=11)
-    ax.set_ylabel("W m$^{-2}$ [JJA mean]", fontsize=12)
+    ax.set_ylabel("JJA mean (W m$^{-2})$ ", fontsize=12)
     ax.tick_params(axis="y", labelsize=11)
     ax.set_title("Summer SEB components",fontsize=13)
     ax.legend(frameon=False, ncol=4, loc="upper center", bbox_to_anchor=(0.5, -0.15), fontsize=11)
@@ -360,7 +368,6 @@ def plot_partition(clim_full, out):
     fig.tight_layout()
     fig.savefig(out, dpi=600)
     plt.close(fig)
-
 
 def plot_albedo_experiment(years, out):
     sts = [s for s in mc.AWS_STATIONS if s in years["station"].unique()]

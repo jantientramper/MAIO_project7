@@ -99,8 +99,7 @@ COLORS = {
     "AWS5":  "#2878B5",  # oceaanblauw
     "AWS6":  "#56B4E9",  # ijsblauw
     "AWS9":  "#393B79",  # diep indigo
-    "AWS10": "#A276C6",  # paars
-    "SHR":   "#008300",  # groen (eddy-covariance mast)
+    "AWS10": "#8F30DD",  # paars
 }
 # ---------------------------------------------------------------------------
 # Inlezen
