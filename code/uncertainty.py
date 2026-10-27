@@ -305,9 +305,43 @@ def plot_correlations(years, cor, out):
     plt.close(fig)
 
 
+def plot_correlation_table(cor, out, stations=tuple(mc.AWS_STATIONS)):
+    """De correlatietabel uit resultaten.md als figuur (alleen type 0): r per station.
+
+    Elke cel bevat een balk vanuit het midden: naar rechts bij positieve r, naar links bij
+    negatieve r, lengte |r|. Het getal staat aan de lege kant.
+    """
+    from matplotlib.patches import Rectangle
+    vars_ = ["SWnet", "LWnet", "SHF", "LHF", "albedo"]
+    labels = [r"SW$_\mathrm{net}$", r"LW$_\mathrm{net}$", "SHF", "LHF", "Albedo"]
+    c = cor[cor["subset"] == "alleen type 0"].set_index(["station", "variabele"])
+    fmt = lambda x: f"{x:.2f}".replace("-", "−")
+    pad, half = 0.06, 0.44                  # celrand en halve breedte van de balkruimte
+    fig, ax = plt.subplots(figsize=(8, 4))
+    for k, st in enumerate(stations):
+        d = c.loc[st].reindex(vars_)
+        mid = k + 0.5
+        for yi, v in enumerate(vars_):
+            r = d.loc[v, "r"]
+            ax.add_patch(Rectangle((k + pad / 2, yi + 0.06), 1 - pad, 0.88, facecolor="#f3f2ef", lw=0))
+            ax.add_patch(Rectangle((mid, yi + 0.22), r * half, 0.56, facecolor=mc.COLORS[st], lw=0))
+            ax.text(mid - np.sign(r) * 0.06, yi + 0.5, fmt(r), ha="right" if r > 0 else "left",
+                    va="center", fontsize=12, color="#2b2a27", weight="bold")
+        ax.plot([mid, mid], [0.06, len(vars_) - 0.06], color="#52514e", lw=0.8)
+        ax.text(mid, -0.12, f"{st}\n(n = {int(d['n'].max())})", ha="center", va="bottom", fontsize=12)
+    for yi, lab in enumerate(labels):
+        ax.text(-0.06, yi + 0.5, lab, ha="right", va="center", fontsize=12)
+    ax.set_xlim(-0.02, len(stations) + 0.02)
+    ax.set_ylim(len(vars_) + 0.02, -0.75)
+    ax.axis("off")
+    fig.tight_layout()
+    fig.savefig(out, dpi=600, bbox_inches="tight")
+    plt.close(fig)
+
+
 def plot_sensitivity(sens, summary, out):
     params = list(SENSITIVITY)
-    fig, axes = plt.subplots(1, len(mc.AWS_STATIONS), figsize=(13, 5.1), sharey=True)
+    fig, axes = plt.subplots(1, len(mc.AWS_STATIONS), figsize=(11, 4), sharey=True)
     for ax, st in zip(axes, mc.AWS_STATIONS):
         s = sens[sens["station"] == st].set_index("parameter").reindex(params)
         base = summary.loc[st, "jja_smelt_mm"]
@@ -344,7 +378,7 @@ def plot_sensitivity(sens, summary, out):
     # één x-label, gecentreerd onder de vier panelen (niet onder de hele figuur)
     left, right = axes[0].get_position().x0, axes[-1].get_position().x1
     fig.text((left + right) / 2, 0.015, "change in JJA melt (%)", ha="center", fontsize=12)
-    fig.savefig(out, dpi=150)
+    fig.savefig(out, dpi=600)
     plt.close(fig)
 
 
@@ -397,6 +431,7 @@ def main():
           .reindex(columns=mc.AWS_STATIONS).to_string())
 
     plot_correlations(years, cor, out / "correlations.png")
+    plot_correlation_table(cor, out / "correlations_paper.png")
 
     gr = gradient_ci(years)
     gr.round(3).to_csv(out / "gradient_ci.csv")

@@ -457,9 +457,6 @@ def plot_albedo_climatology(clims, years, out):
         ax1.plot(c.index, c.values, lw=2, color=mc.COLORS[st], label=f"{st} ({c_full.attrs.get('period', '?')})")
     ax1.set_xlabel("Day of year")
     ax1.set_ylabel("Albedo")
-    ax1.set_title("Climatological albedo (median over all years, 15-day smoothed)\n"
-                  "band: 25th–75th percentile between years", fontsize=10)
-    ax1.legend(frameon=False, ncol=2, loc="upper center", bbox_to_anchor=(0.5, -0.14))
     mc.style(ax1)
     for st in mc.AWS_STATIONS:
         d = years[years["station"] == st]
@@ -471,7 +468,6 @@ def plot_albedo_climatology(clims, years, out):
             ax2.plot(x, r["intercept"] + r["slope"] * x, color=mc.COLORS[st], lw=2.5, zorder=2)
     ax2.set_xlabel("Mean JJA albedo")
     ax2.set_ylabel("JJA melt (mm w.e.)")
-    ax2.set_title("Summer melt vs summer albedo (per year)")
     ax2.legend(frameon=False)
     style(ax2)
     fig.tight_layout()
