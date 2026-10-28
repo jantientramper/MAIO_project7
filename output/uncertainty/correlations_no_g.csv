@@ -1,0 +1,57 @@
+subset,station,variabele,r,lo,hi,p,n,paper_r
+alle jaren,AWS5,SWnet,0.297,-0.197,0.671,0.231,18,0.57
+alle jaren,AWS5,LWnet,0.374,-0.113,0.716,0.127,18,0.58
+alle jaren,AWS5,Rnet,0.504,0.049,0.786,0.033,18,0.86
+alle jaren,AWS5,SHF,0.81,0.553,0.927,0.0,18,0.78
+alle jaren,AWS5,LHF,0.68,0.312,0.87,0.002,18,0.88
+alle jaren,AWS5,G,,,,,18,
+alle jaren,AWS5,albedo,-0.442,-0.753,0.031,0.066,18,-0.762
+alle jaren,AWS6,SWnet,0.848,0.594,0.948,0.0,15,0.78
+alle jaren,AWS6,LWnet,0.408,-0.132,0.761,0.131,15,0.66
+alle jaren,AWS6,Rnet,0.955,0.868,0.985,0.0,15,0.98
+alle jaren,AWS6,SHF,0.051,-0.474,0.549,0.858,15,0.74
+alle jaren,AWS6,LHF,0.299,-0.252,0.704,0.279,15,0.78
+alle jaren,AWS6,G,,,,,15,
+alle jaren,AWS6,albedo,-0.958,-0.986,-0.874,0.0,15,-0.933
+alle jaren,AWS9,SWnet,0.9,0.746,0.962,0.0,18,0.88
+alle jaren,AWS9,LWnet,-0.023,-0.485,0.449,0.927,18,0.59
+alle jaren,AWS9,Rnet,0.975,0.934,0.991,0.0,18,0.98
+alle jaren,AWS9,SHF,0.617,0.21,0.841,0.006,18,0.71
+alle jaren,AWS9,LHF,0.469,0.003,0.768,0.049,18,0.6
+alle jaren,AWS9,G,,,,,18,
+alle jaren,AWS9,albedo,-0.967,-0.988,-0.913,0.0,18,-0.959
+alle jaren,AWS10,SWnet,0.793,-0.298,0.986,0.11,5,0.79
+alle jaren,AWS10,LWnet,0.841,-0.158,0.989,0.074,5,0.7
+alle jaren,AWS10,Rnet,0.927,0.246,0.995,0.023,5,0.93
+alle jaren,AWS10,SHF,0.78,-0.329,0.985,0.12,5,0.29
+alle jaren,AWS10,LHF,0.807,-0.261,0.987,0.099,5,0.46
+alle jaren,AWS10,G,,,,,5,
+alle jaren,AWS10,albedo,-0.976,-0.999,-0.679,0.004,5,-0.872
+alleen type 0,AWS5,SWnet,0.44,-0.146,0.798,0.132,13,0.57
+alleen type 0,AWS5,LWnet,0.524,-0.038,0.834,0.066,13,0.58
+alleen type 0,AWS5,Rnet,0.746,0.332,0.919,0.003,13,0.86
+alleen type 0,AWS5,SHF,0.838,0.533,0.95,0.0,13,0.78
+alleen type 0,AWS5,LHF,0.741,0.321,0.917,0.004,13,0.88
+alleen type 0,AWS5,G,,,,,13,
+alleen type 0,AWS5,albedo,-0.649,-0.884,-0.152,0.016,13,-0.762
+alleen type 0,AWS6,SWnet,0.763,0.201,0.947,0.017,9,0.78
+alleen type 0,AWS6,LWnet,0.712,0.091,0.934,0.031,9,0.66
+alleen type 0,AWS6,Rnet,0.982,0.913,0.996,0.0,9,0.98
+alleen type 0,AWS6,SHF,0.715,0.097,0.935,0.03,9,0.74
+alleen type 0,AWS6,LHF,0.733,0.134,0.94,0.025,9,0.78
+alleen type 0,AWS6,G,,,,,9,
+alleen type 0,AWS6,albedo,-0.939,-0.987,-0.729,0.0,9,-0.933
+alleen type 0,AWS9,SWnet,0.921,0.717,0.98,0.0,11,0.88
+alleen type 0,AWS9,LWnet,0.151,-0.493,0.689,0.657,11,0.59
+alleen type 0,AWS9,Rnet,0.991,0.966,0.998,0.0,11,0.98
+alleen type 0,AWS9,SHF,0.766,0.308,0.936,0.006,11,0.71
+alleen type 0,AWS9,LHF,0.787,0.353,0.942,0.004,11,0.6
+alleen type 0,AWS9,G,,,,,11,
+alleen type 0,AWS9,albedo,-0.98,-0.995,-0.921,0.0,11,-0.959
+alleen type 0,AWS10,SWnet,0.953,-0.101,0.999,0.047,4,0.79
+alleen type 0,AWS10,LWnet,0.953,-0.1,0.999,0.047,4,0.7
+alleen type 0,AWS10,Rnet,0.973,0.184,0.999,0.027,4,0.93
+alleen type 0,AWS10,SHF,0.933,-0.271,0.999,0.067,4,0.29
+alleen type 0,AWS10,LHF,0.797,-0.701,0.996,0.203,4,0.46
+alleen type 0,AWS10,G,,,,,4,
+alleen type 0,AWS10,albedo,-0.977,-1.0,-0.268,0.023,4,-0.872

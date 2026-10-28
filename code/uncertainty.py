@@ -224,6 +224,16 @@ def correlations(years):
     return pd.DataFrame(rows)
 
 
+def jja_years_without_g():
+    """Zomerwaarden per station zoals jja_summary (≥80% JJA-dekking), maar zonder ground heat flux."""
+    orig = stm.N_G_ITER
+    try:
+        stm.N_G_ITER = 0     # geen koppeling met het ondergrondmodel -> G = 0
+        return pd.concat([ea.jja_summary(st)[0] for st in mc.AWS_STATIONS])
+    finally:
+        stm.N_G_ITER = orig
+
+
 def gradient_ci(years):
     clim = years.groupby("station").mean(numeric_only=True)
     rows = []
@@ -431,7 +441,12 @@ def main():
           .reindex(columns=mc.AWS_STATIONS).to_string())
 
     plot_correlations(years, cor, out / "correlations.png")
-    plot_correlation_table(cor, out / "correlations_paper.png")
+    # correlatietabel: zelfde zomers (≥80% JJA-dekking), maar smelt zonder ground heat flux
+    years_no_g = jja_years_without_g()
+    years_no_g.round(3).to_csv(out / "jja_per_station_year_no_g.csv")
+    cor_no_g = correlations(years_no_g)
+    cor_no_g.round(3).to_csv(out / "correlations_no_g.csv", index=False)
+    plot_correlation_table(cor_no_g, out / "correlations_paper.png")
 
     gr = gradient_ci(years)
     gr.round(3).to_csv(out / "gradient_ci.csv")
